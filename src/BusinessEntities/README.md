@@ -24,7 +24,7 @@ The primary purpose of the BusinessEntities project is to provide a robust found
 
 1. Clone the repository:
      
-        git clone https://github.com/krazkjn/AdvancedLogging.git
+        git clone https://github.com/KrazKjn/AdvancedLogging.git
 
 2. Open the solution in Visual Studio.
 

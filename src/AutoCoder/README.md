@@ -23,7 +23,7 @@ The primary purpose of AutoCoder is to ensure that function code blocks have Aut
 ## Installation
 
 1. Clone the repository:
-   git clone https://github.com/krazkjn/AdvancedLogging/AutoCoder.git
+   git clone https://github.com/KrazKjn/AdvancedLogging/AutoCoder.git
 
 2. Open the solution in Visual Studio.
 

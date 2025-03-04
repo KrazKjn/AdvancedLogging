@@ -16,7 +16,7 @@ To get started with the BusinessLogic project, follow these steps:
 
 1. **Clone the repository**: Clone the repository to your local machine using the following command:
 			
-		git clone https://github.com/krazkjn/AdvancedLogging.git
+		git clone https://github.com/KrazKjn/AdvancedLogging.git
 
 2. **Open the solution**: Open the solution file in Visual Studio.
 

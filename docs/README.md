@@ -31,7 +31,7 @@ This project contains unit tests for the AdvancedLogging project. It ensures tha
 
 1. Clone the repository:
 
-	   git clone https://github.com/grazkjn/AdvancedLogging.git
+	   git clone https://github.com/KrazKjn/AdvancedLogging.git
 	   
 2. Open the solution in Visual Studio.
 
