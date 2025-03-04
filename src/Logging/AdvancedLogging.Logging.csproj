@@ -1,0 +1,141 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{A3974FB7-3F14-432E-8F9F-C10C5B6F0985}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>AdvancedLogging.Logging</RootNamespace>
+    <AssemblyName>AdvancedLogging.Logging</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>true</Deterministic>
+    <TargetFrameworkProfile />
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Configuration" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Numerics" />
+    <Reference Include="System.Web" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Extensions\StringExtensions.cs" />
+    <Compile Include="Models\LoggerConfig.cs" />
+    <Compile Include="Models\ApplicationSettings.cs" />
+    <Compile Include="Logging\AutoLogFunction.cs" />
+    <Compile Include="Loggers\CommonLogger.cs" />
+    <Compile Include="Constants\ConfigurationSetting.cs" />
+    <Compile Include="Constants\LogFormats.cs" />
+    <Compile Include="Loggers\Log4NetLogger.cs" />
+    <Compile Include="Utilities\DirectoryHelper.cs" />
+    <Compile Include="Extensions\LoggingExtensions.cs" />
+    <Compile Include="Interfaces\ICommonLogger.cs" />
+    <Compile Include="Interfaces\IDirectoryManager.cs" />
+    <Compile Include="Interfaces\ILoggerUtility.cs" />
+    <Compile Include="Utilities\LoggerUtility.cs" />
+    <Compile Include="Utilities\LoggingUtils.cs" />
+    <Compile Include="Loggers\SeriLogger.cs" />
+    <Compile Include="Constants\SharedLevel.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Utilities\RemotingLoggerUtility.cs" />
+    <Compile Include="Utilities\ObjectDumper.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="AdvancedLogging.Logging.nuspec" />
+    <None Include="app.config" />
+    <None Include="packages.config" />
+    <None Include="README.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="log4net">
+      <Version>3.0.4</Version>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Bcl.Build">
+      <Version>1.0.21</Version>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json">
+      <Version>9.0.2</Version>
+    </PackageReference>
+    <PackageReference Include="Serilog">
+      <Version>4.2.0</Version>
+    </PackageReference>
+    <PackageReference Include="Serilog.Settings.AppSettings">
+      <Version>3.0.0</Version>
+    </PackageReference>
+    <PackageReference Include="Serilog.Settings.Configuration">
+      <Version>9.0.0</Version>
+    </PackageReference>
+    <PackageReference Include="Serilog.Sinks.Console">
+      <Version>6.0.0</Version>
+    </PackageReference>
+    <PackageReference Include="Serilog.Sinks.Debug">
+      <Version>3.0.0</Version>
+    </PackageReference>
+    <PackageReference Include="Serilog.Sinks.File">
+      <Version>6.0.0</Version>
+    </PackageReference>
+    <PackageReference Include="System.Buffers">
+      <Version>4.6.0</Version>
+    </PackageReference>
+    <PackageReference Include="System.Diagnostics.DiagnosticSource">
+      <Version>9.0.2</Version>
+    </PackageReference>
+    <PackageReference Include="System.Memory">
+      <Version>4.6.0</Version>
+    </PackageReference>
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="9.0.2" />
+    <PackageReference Include="System.Threading.Channels">
+      <Version>9.0.2</Version>
+    </PackageReference>
+    <PackageReference Include="System.Threading.Tasks.Extensions">
+      <Version>4.6.0</Version>
+    </PackageReference>
+    <!-- Add other package references here -->
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\BusinessEntities\AdvancedLogging.BusinessEntities.csproj">
+      <Project>{4039e8c9-7b47-4167-87a4-a78121bc5e60}</Project>
+      <Name>AdvancedLogging.BusinessEntities</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Import Project="..\packages\Microsoft.Bcl.Build.1.0.21\build\Microsoft.Bcl.Build.targets" Condition="Exists('..\packages\Microsoft.Bcl.Build.1.0.21\build\Microsoft.Bcl.Build.targets')" />
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\packages\Microsoft.Bcl.Build.1.0.21\build\Microsoft.Bcl.Build.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Microsoft.Bcl.Build.1.0.21\build\Microsoft.Bcl.Build.targets'))" />
+  </Target>
+</Project>
