@@ -13,7 +13,7 @@ namespace AdvancedLogging.DataAccess.Configurations
     /// </summary>
     public class Configuration : IConfigurationServer
     {
-        protected IWebClient client;
+        protected IWebClientExtended client;
         protected Dictionary<string, Models.ConfigurationParameter> receivedConfiguration;
 
         /// <summary>
@@ -21,7 +21,7 @@ namespace AdvancedLogging.DataAccess.Configurations
         /// </summary>
         /// <param name="serverBaseUrl">The base URL of the configuration server.</param>
         /// <param name="webClientFactory">Factory to create instances of IWebClient.</param>
-        public Configuration(string serverBaseUrl, IWebClientFactory webClientFactory)
+        public Configuration(string serverBaseUrl, IWebClientExtendedFactory webClientFactory)
         {
             using (var vAutoLogFunction = new AutoLogFunction(new { serverBaseUrl, webClientFactory }))
             {

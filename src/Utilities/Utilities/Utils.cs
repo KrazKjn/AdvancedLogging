@@ -1,11 +1,11 @@
-using System;
-using System.Text.RegularExpressions;
-using System.Xml.Serialization;
-using System.Xml;
-using System.Text;
-using System.Reflection;
-using System.Net;
 using AdvancedLogging.Logging;
+using System;
+using System.Net;
+using System.Reflection;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Xml;
+using System.Xml.Serialization;
 
 namespace AdvancedLogging.Utilities
 {

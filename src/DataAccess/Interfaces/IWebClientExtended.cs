@@ -2,7 +2,7 @@ using System;
 
 namespace AdvancedLogging.Interfaces
 {
-    public interface IWebClient : IDisposable
+    public interface IWebClientExtended : IDisposable
     {
         string BaseAddress { get; set; }
         System.Net.WebHeaderCollection Headers { get; set; }

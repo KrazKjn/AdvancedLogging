@@ -67,7 +67,7 @@ namespace AdvancedLogging.TestConsoleApp
 
                     HttpClient httpClient = new HttpClient();
 
-                    WebClientExt webClient = new WebClientExt()
+                    WebClientExtended webClient = new WebClientExtended()
                     {
                         Credentials = System.Net.CredentialCache.DefaultCredentials,
                         Timeout = 10
@@ -285,14 +285,14 @@ namespace AdvancedLogging.TestConsoleApp
             }
         }
 
-        private static void TestWebClient(WebClientExt webClientExt, Uri uri)
+        private static void TestWebClient(WebClientExtended webClientExtended, Uri uri)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { webClientExt }))
+            using (var vAutoLogFunction = new AutoLogFunction(new { webClientExtended }))
             {
                 try
                 {
-                    webClientExt.Timeout = 10;
-                    string responseBody = webClientExt.DownloadString(uri, ApplicationSettings.MaxAutoRetriesHttp, ApplicationSettings.AutoRetrySleepMsHttp, ApplicationSettings.AutoTimeoutIncrementMsHttp);
+                    webClientExtended.Timeout = 10;
+                    string responseBody = webClientExtended.DownloadString(uri, ApplicationSettings.MaxAutoRetriesHttp, ApplicationSettings.AutoRetrySleepMsHttp, ApplicationSettings.AutoTimeoutIncrementMsHttp);
 
                     vAutoLogFunction.WriteLog(new string('-', 80));
                     vAutoLogFunction.WriteLog("This is NOT Debug Code.  This is a TEST at INFO Level.");
@@ -302,20 +302,20 @@ namespace AdvancedLogging.TestConsoleApp
                 }
                 catch (Exception exOuter)
                 {
-                    vAutoLogFunction.LogFunction(new { webClientExt }, MethodBase.GetCurrentMethod(), true, exOuter);
+                    vAutoLogFunction.LogFunction(new { webClientExtended }, MethodBase.GetCurrentMethod(), true, exOuter);
                     throw;
                 }
             }
         }
 
-        private static void TestWebClient(WebClientExt webClientExt, string uri)
+        private static void TestWebClient(WebClientExtended webClientExtended, string uri)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { webClientExt }))
+            using (var vAutoLogFunction = new AutoLogFunction(new { webClientExtended }))
             {
                 try
                 {
-                    webClientExt.Timeout = 10;
-                    string responseBody = webClientExt.DownloadString(uri, ApplicationSettings.MaxAutoRetriesHttp, ApplicationSettings.AutoRetrySleepMsHttp, ApplicationSettings.AutoTimeoutIncrementMsHttp);
+                    webClientExtended.Timeout = 10;
+                    string responseBody = webClientExtended.DownloadString(uri, ApplicationSettings.MaxAutoRetriesHttp, ApplicationSettings.AutoRetrySleepMsHttp, ApplicationSettings.AutoTimeoutIncrementMsHttp);
 
                     vAutoLogFunction.WriteLog(new string('-', 80));
                     vAutoLogFunction.WriteLog("This is NOT Debug Code.  This is a TEST at INFO Level.");
@@ -325,7 +325,7 @@ namespace AdvancedLogging.TestConsoleApp
                 }
                 catch (Exception exOuter)
                 {
-                    vAutoLogFunction.LogFunction(new { webClientExt }, MethodBase.GetCurrentMethod(), true, exOuter);
+                    vAutoLogFunction.LogFunction(new { webClientExtended }, MethodBase.GetCurrentMethod(), true, exOuter);
                     throw;
                 }
             }

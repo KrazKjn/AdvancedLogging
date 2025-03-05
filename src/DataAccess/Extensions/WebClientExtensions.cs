@@ -87,7 +87,7 @@ namespace AdvancedLogging.Extensions
             }
         }
 
-        private static T ExecuteWithRetryExt<T>(this WebClientExt webClient, Func<WebClientExt, T> action, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        private static T ExecuteWithRetryExt<T>(this WebClientExtended webClient, Func<WebClientExtended, T> action, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
             using (var vAutoLogFunction = new AutoLogFunction(new { webClient, retries, retryWaitMS, autoTimeoutIncrement }))
             {
@@ -119,14 +119,14 @@ namespace AdvancedLogging.Extensions
                         catch (HttpRequestException ex)
                         {
                             ExtensionsFunctions.HandleException($"{action.Method.Name}", vAutoLogFunction, ex, i, retries, ref success, ref timeoutIncrement, autoTimeoutIncrement);
-                            webClient = (WebClientExt)ExtensionsFunctions.CreateWebClient((WebClient)webClient, vAutoLogFunction, ex.Message.Contains("timeout") ? timeoutIncrement : 0);
+                            webClient = (WebClientExtended)ExtensionsFunctions.CreateWebClient((WebClient)webClient, vAutoLogFunction, ex.Message.Contains("timeout") ? timeoutIncrement : 0);
                         }
                         catch (Exception ex)
                         {
                             ExtensionsFunctions.HandleException($"{action.Method.Name}", vAutoLogFunction, ex, i, retries, ref success, ref timeoutIncrement, autoTimeoutIncrement);
                             if (ex.InnerException?.Message == "A task was canceled.")
                             {
-                                webClient = (WebClientExt)ExtensionsFunctions.CreateWebClient((WebClient)webClient, vAutoLogFunction, timeoutIncrement);
+                                webClient = (WebClientExtended)ExtensionsFunctions.CreateWebClient((WebClient)webClient, vAutoLogFunction, timeoutIncrement);
                             }
                         }
                         ExtensionsFunctions.PerformRetryDelay($"{action.Method.Name}", vAutoLogFunction, retryWaitMS);
@@ -263,7 +263,7 @@ namespace AdvancedLogging.Extensions
         /// <param name="retryWaitMS">The wait time between retries in milliseconds.</param>
         /// <param name="autoTimeoutIncrement">The auto timeout increment value.</param>
         /// <returns>The downloaded string.</returns>
-        public static string DownloadString(this WebClientExt webClient, string address, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static string DownloadString(this WebClientExtended webClient, string address, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
             return webClient.ExecuteWithRetry(r => r.DownloadString(address), retries, retryWaitMS, autoTimeoutIncrement);
         }
@@ -277,7 +277,7 @@ namespace AdvancedLogging.Extensions
         /// <param name="retryWaitMS">The wait time between retries in milliseconds.</param>
         /// <param name="autoTimeoutIncrement">The auto timeout increment value.</param>
         /// <returns>The downloaded string.</returns>
-        public static string DownloadString(this IWebClient webClient, string address, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static string DownloadString(this IWebClientExtended webClient, string address, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
             // TODO: Fully Test! This is NOT fully Tested!
             return ((WebClient)webClient).ExecuteWithRetry(r => r.DownloadString(address), retries, retryWaitMS, autoTimeoutIncrement);
@@ -295,7 +295,7 @@ namespace AdvancedLogging.Extensions
         /// <param name="retryWaitMS">The wait time between retries in milliseconds.</param>
         /// <param name="autoTimeoutIncrement">The auto timeout increment value.</param>
         /// <returns>The downloaded string.</returns>
-        public static string DownloadString(this WebClientExt webClient, Uri address, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static string DownloadString(this WebClientExtended webClient, Uri address, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
             return webClient.ExecuteWithRetry(r => r.DownloadString(address), retries, retryWaitMS, autoTimeoutIncrement);
         }
@@ -351,7 +351,7 @@ namespace AdvancedLogging.Extensions
         /// <param name="retryWaitMS">The wait time between retries in milliseconds.</param>
         /// <param name="autoTimeoutIncrement">The auto timeout increment value.</param>
         /// <returns>WebRequest object.</returns>
-        public static WebRequest GetWebRequest(this WebClientExt webClient, string address, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static WebRequest GetWebRequest(this WebClientExtended webClient, string address, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
             // TODO: Fully Test! This is NOT fully Tested!
             return webClient.ExecuteWithRetryExt(r => r.GetWebRequest(address), retries, retryWaitMS, autoTimeoutIncrement);
@@ -367,7 +367,7 @@ namespace AdvancedLogging.Extensions
         /// <param name="retryWaitMS">The wait time between retries in milliseconds.</param>
         /// <param name="autoTimeoutIncrement">The auto timeout increment value.</param>
         /// <returns>WebResponse object.</returns>
-        public static WebResponse GetWebResponse(this WebClientExt webClient, WebRequest request, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static WebResponse GetWebResponse(this WebClientExtended webClient, WebRequest request, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
             // TODO: Fully Test! This is NOT fully Tested!
             return webClient.ExecuteWithRetryExt(r => r.GetWebResponse(request), retries, retryWaitMS, autoTimeoutIncrement);
