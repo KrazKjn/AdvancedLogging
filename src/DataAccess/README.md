@@ -40,55 +40,54 @@ To use the DataAccess project in your application, follow these steps:
         using AdvancedLogging.SecureCredentials;
         using AdvancedLogging.Utilities;
  
-		namespace MyApplication
-		{
-			class Program
-			{
-				static void Main(string[] args)
-				{
+        namespace MyApplication
+        {
+            class Program
+            {
+                static void Main(string[] args)
+                {
                     string url = "https://learn.microsoft.com/en-us/aspnet/core/blazor/security/blazor-web-app-with-oidc?view=aspnetcore-9.0&pivots=without-bff-pattern";
 
                     ApplicationSettings.Logger = new Log4NetLogger("MyApplication");
                     SecurityProtocol.EnableAllTlsSupport();
                     LogConfigData();
  
-					WebClientExtended webClient = new WebClientExtended()
-					{
-					    Credentials = System.Net.CredentialCache.DefaultCredentials,
-					    Timeout = 10
-					};
+                    WebClientExtended webClient = new WebClientExtended()
+                    {
+                        Credentials = System.Net.CredentialCache.DefaultCredentials,
+                        Timeout = 10
+                    };
 
-					try
-					{
-					    vAutoLogFunction.WriteLog("Testing: TestWebClient ...");
-					    TestWebClient(webClient, new Uri(url));
-					}
-					catch { }
-				}
-			}
+                    try
+                    {
+                        vAutoLogFunction.WriteLog("Testing: TestWebClient ...");
+                        TestWebClient(webClient, new Uri(url));
+                    }
+                    catch { }
+                }
+            }
 
-			private static void TestWebClient(WebClientExtended webClientExtended, Uri uri)
-			{
-			    using (var vAutoLogFunction = new AutoLogFunction(new { webClientExtended }))
-			    {
-			        try
-			        {
-			            webClientExtended.Timeout = 10;
-			            string responseBody = webClientExtended.DownloadString(uri, ApplicationSettings.MaxAutoRetriesHttp, ApplicationSettings.AutoRetrySleepMsHttp, ApplicationSettings.AutoTimeoutIncrementMsHttp);
+            private static void TestWebClient(WebClientExtended webClientExtended, Uri uri)
+            {
+                using (var vAutoLogFunction = new AutoLogFunction(new { webClientExtended }))
+                {
+                    try
+                    {
+                        webClientExtended.Timeout = 10;
+                        string responseBody = webClientExtended.DownloadString(uri, ApplicationSettings.MaxAutoRetriesHttp, ApplicationSettings.AutoRetrySleepMsHttp, ApplicationSettings.AutoTimeoutIncrementMsHttp);
 
-			            vAutoLogFunction.WriteDebug(4, new string('-', 80));
-			            vAutoLogFunction.WriteDebugFormat(4, "Web Data: {0}", Utilities.ObjectDumper.Dump(responseBody));
-			            vAutoLogFunction.WriteDebug(4, new string('-', 80));
-			        }
-			        catch (Exception exOuter)
-			        {
-			            vAutoLogFunction.LogFunction(new { webClientExtended }, MethodBase.GetCurrentMethod(), true, exOuter);
-			            throw;
-			        }
-			    }
-			}
-		}
-
+                        vAutoLogFunction.WriteDebug(4, new string('-', 80));
+                        vAutoLogFunction.WriteDebugFormat(4, "Web Data: {0}", Utilities.ObjectDumper.Dump(responseBody));
+                        vAutoLogFunction.WriteDebug(4, new string('-', 80));
+                    }
+                    catch (Exception exOuter)
+                    {
+                        vAutoLogFunction.LogFunction(new { webClientExtended }, MethodBase.GetCurrentMethod(), true, exOuter);
+                        throw;
+                    }
+                }
+            }
+        }
 
 ## Contributing
 Contributions to the DataAccess project are welcome. To contribute, follow these steps:

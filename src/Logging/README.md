@@ -91,7 +91,6 @@ To use the Logging project in your application, follow these steps:
 			}
 		}
 
-
 ## Contributing
 Contributions to the Logging project are welcome. To contribute, follow these steps:
 
