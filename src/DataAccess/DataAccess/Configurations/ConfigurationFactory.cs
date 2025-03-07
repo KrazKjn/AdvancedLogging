@@ -1,5 +1,6 @@
 using AdvancedLogging.Interfaces;
 using AdvancedLogging.Logging;
+using AdvancedLogging.Models;
 using System;
 
 [assembly: CLSCompliant(true)]
@@ -24,7 +25,7 @@ namespace AdvancedLogging.DataAccess.Configurations
                 {
                     // Configuration is a class that represents the configuration server
                     // SystemWebClientFactory is a class that creates web client instances
-                    return new Configuration(url, new SystemWebClientFactory());
+                    return new Configuration(url, new WebClientExtendedFactory());
                 }
                 catch (Exception exOuter)
                 {

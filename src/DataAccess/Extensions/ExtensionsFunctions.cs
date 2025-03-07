@@ -280,7 +280,7 @@ namespace AdvancedLogging.Extensions
             try
             {
 
-                WebClientExt request = new WebClientExt()
+                WebClientExtended request = new WebClientExtended()
                 {
                     BaseAddress = webClient.BaseAddress,
                     CachePolicy = webClient.CachePolicy,
@@ -291,7 +291,7 @@ namespace AdvancedLogging.Extensions
                     QueryString = webClient.QueryString,
                     UseDefaultCredentials = webClient.UseDefaultCredentials,
                     Site = webClient.Site,
-                    Timeout = ((WebClientExt)webClient).Timeout
+                    Timeout = ((WebClientExtended)webClient).Timeout
                 };
                 if (timeoutIncrement > 0)
                 {
