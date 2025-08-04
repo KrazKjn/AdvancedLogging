@@ -1,5 +1,7 @@
 using AdvancedLogging.Constants;
+using AdvancedLogging.Interfaces;
 using AdvancedLogging.Logging;
+using AdvancedLogging.Logging.Interfaces;
 using AdvancedLogging.Utilities;
 using Polly;
 using Polly.Retry;
@@ -19,16 +21,15 @@ namespace AdvancedLogging.Extensions
     {
         private static async Task<T> ExecuteWithRetryAsync<T>(
             this HttpClient httpClient,
+            ICommonLogger logger,
+            ILoggingContext loggingContext,
             Func<HttpClient, Task<T>> action,
             int retries,
             int retryWaitMS,
             int autoTimeoutIncrement = 0) // autoTimeoutIncrement is no longer used but kept for signature compatibility.
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { httpClient, retries, retryWaitMS }))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { httpClient, retries, retryWaitMS }))
             {
-                // Note: autoTimeoutIncrement is not supported with Polly's default retry mechanism
-                // when using a shared HttpClient. A more advanced setup with Polly's TimeoutPolicy
-                // and CancellationToken would be needed. For now, we are simplifying the implementation.
                 if (autoTimeoutIncrement > 0)
                 {
                     vAutoLogFunction.WriteWarn("autoTimeoutIncrement is not supported in this version of ExecuteWithRetryAsync and will be ignored.");
@@ -55,11 +56,11 @@ namespace AdvancedLogging.Extensions
                         if (result is HttpResponseMessage response)
                         {
                             string responseUri = response.RequestMessage.RequestUri.ToString();
-                            LoggingUtils.ProcessStopWatch(ref sw, vAutoLogFunction, responseUri, LoggingUtils.DebugPrintLevel[ConfigurationSetting.Log_FunctionHeaderMethod]);
+                            LoggingUtils.ProcessStopWatch(logger, loggingContext, ref sw, vAutoLogFunction, responseUri, LoggingUtils.DebugPrintLevel[ConfigurationSetting.Log_FunctionHeaderMethod]);
                         }
                         else
                         {
-                            LoggingUtils.ProcessStopWatch(ref sw, vAutoLogFunction, "", LoggingUtils.DebugPrintLevel[ConfigurationSetting.Log_FunctionHeaderMethod]);
+                            LoggingUtils.ProcessStopWatch(logger, loggingContext, ref sw, vAutoLogFunction, "", LoggingUtils.DebugPrintLevel[ConfigurationSetting.Log_FunctionHeaderMethod]);
                         }
 
                         return result;
@@ -74,244 +75,84 @@ namespace AdvancedLogging.Extensions
             }
         }
 
-
-        /// <summary>
-        /// Sends a DELETE request to the specified URI, retrying the request if it fails.
-        /// </summary>
-        /// <param name="httpClient">The HttpClient instance.</param>
-        /// <param name="requestUri">The URI to which the request is sent.</param>
-        /// <param name="retries">The number of times to retry the request if it fails.</param>
-        /// <param name="retryWaitMS">The wait time in milliseconds between retries.</param>
-        /// <param name="autoTimeoutIncrement">The increment value for the timeout in case of a timeout exception.</param>
-        /// <returns>The HTTP response message.</returns>
-        public static async Task<HttpResponseMessage> DeleteAsync(this HttpClient httpClient, string requestUri, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static async Task<HttpResponseMessage> DeleteAsync(this HttpClient httpClient, ICommonLogger logger, ILoggingContext loggingContext, string requestUri, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            return await httpClient.ExecuteWithRetryAsync(r => r.DeleteAsync(requestUri), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(logger, loggingContext, r => r.DeleteAsync(requestUri), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
-        /// <summary>
-        /// Sends a DELETE request to the specified URI, retrying the request if it fails.
-        /// </summary>
-        /// <param name="httpClient">The HttpClient instance.</param>
-        /// <param name="requestUri">The URI to which the request is sent.</param>
-        /// <param name="cancellationToken">The cancellation token to cancel operation.</param>
-        /// <param name="retries">The number of times to retry the request if it fails.</param>
-        /// <param name="retryWaitMS">The wait time in milliseconds between retries.</param>
-        /// <param name="autoTimeoutIncrement">The increment value for the timeout in case of a timeout exception.</param>
-        /// <returns>The HTTP response message.</returns>
-        public static async Task<HttpResponseMessage> DeleteAsync(this HttpClient httpClient, Uri requestUri, CancellationToken cancellationToken, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static async Task<HttpResponseMessage> DeleteAsync(this HttpClient httpClient, ICommonLogger logger, ILoggingContext loggingContext, Uri requestUri, CancellationToken cancellationToken, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            return await httpClient.ExecuteWithRetryAsync(r => r.DeleteAsync(requestUri, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(logger, loggingContext, r => r.DeleteAsync(requestUri, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
-        /// <summary>
-        /// Sends a GET request to the specified URL, retrying the request if it fails.
-        /// </summary>
-        /// <param name="httpClient">The HttpClient instance.</param>
-        /// <param name="requestUri">The URL to which the request is sent.</param>
-        /// <param name="completionOption">The HttpCompletionOption value to use when sending the request.</param>
-        /// <param name="cancellationToken">The cancellation token to cancel operation.</param>
-        /// <param name="retries">The number of times to retry the request if it fails.</param>
-        /// <param name="retryWaitMS">The wait time in milliseconds between retries.</param>
-        /// <param name="autoTimeoutIncrement">The increment value for the timeout in case of a timeout exception.</param>
-        /// <returns>The HTTP response message.</returns>
-        public static async Task<HttpResponseMessage> GetAsync(this HttpClient httpClient, string requestUri, HttpCompletionOption completionOption, CancellationToken cancellationToken, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static async Task<HttpResponseMessage> GetAsync(this HttpClient httpClient, ICommonLogger logger, ILoggingContext loggingContext, string requestUri, HttpCompletionOption completionOption, CancellationToken cancellationToken, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            return await httpClient.ExecuteWithRetryAsync(r => r.GetAsync(requestUri, completionOption, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(logger, loggingContext, r => r.GetAsync(requestUri, completionOption, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
-        /// <summary>
-        /// Sends a GET request to the specified URI, retrying the request if it fails.
-        /// </summary>
-        /// <param name="httpClient">The HttpClient instance.</param>
-        /// <param name="requestUri">The URI to which the request is sent.</param>
-        /// <param name="completionOption">The HttpCompletionOption value to use when sending the request.</param>
-        /// <param name="cancellationToken">The cancellation token to cancel operation.</param>
-        /// <param name="retries">The number of times to retry the request if it fails.</param>
-        /// <param name="retryWaitMS">The wait time in milliseconds between retries.</param>
-        /// <param name="autoTimeoutIncrement">The increment value for the timeout in case of a timeout exception.</param>
-        /// <returns>The HTTP response message.</returns>
-        public static async Task<HttpResponseMessage> GetAsync(this HttpClient httpClient, Uri requestUri, HttpCompletionOption completionOption, CancellationToken cancellationToken, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static async Task<HttpResponseMessage> GetAsync(this HttpClient httpClient, ICommonLogger logger, ILoggingContext loggingContext, Uri requestUri, HttpCompletionOption completionOption, CancellationToken cancellationToken, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            return await httpClient.ExecuteWithRetryAsync(r => r.GetAsync(requestUri, completionOption, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(logger, loggingContext, r => r.GetAsync(requestUri, completionOption, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
-        /// <summary>
-        /// Sends a GET request to the specified URL, retrying the request if it fails.
-        /// </summary>
-        /// <param name="httpClient">The HttpClient instance.</param>
-        /// <param name="requestUri">The URI to which the request is sent.</param>
-        /// <param name="completionOption">The HttpCompletionOption value to use when sending the request.</param>
-        /// <param name="retries">The number of times to retry the request if it fails.</param>
-        /// <param name="retryWaitMS">The wait time in milliseconds between retries.</param>
-        /// <param name="autoTimeoutIncrement">The increment value for the timeout in case of a timeout exception.</param>
-        /// <returns>The HTTP response message.</returns>
-        public static async Task<HttpResponseMessage> GetAsync(this HttpClient httpClient, string requestUri, HttpCompletionOption completionOption, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static async Task<HttpResponseMessage> GetAsync(this HttpClient httpClient, ICommonLogger logger, ILoggingContext loggingContext, string requestUri, HttpCompletionOption completionOption, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            return await httpClient.ExecuteWithRetryAsync(r => r.GetAsync(requestUri, completionOption), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(logger, loggingContext, r => r.GetAsync(requestUri, completionOption), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
-        /// <summary>
-        /// Sends a GET request to the specified URL, retrying the request if it fails.
-        /// </summary>
-        /// <param name="httpClient">The HttpClient instance.</param>
-        /// <param name="requestUri">The URI to which the request is sent.</param>
-        /// <param name="retries">The number of times to retry the request if it fails.</param>
-        /// <param name="retryWaitMS">The wait time in milliseconds between retries.</param>
-        /// <param name="autoTimeoutIncrement">The increment value for the timeout in case of a timeout exception.</param>
-        /// <returns>The HTTP response message.</returns>
-        public static async Task<HttpResponseMessage> GetAsync(this HttpClient httpClient, string requestUri, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static async Task<HttpResponseMessage> GetAsync(this HttpClient httpClient, ICommonLogger logger, ILoggingContext loggingContext, string requestUri, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            return await httpClient.ExecuteWithRetryAsync(r => r.GetAsync(requestUri), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(logger, loggingContext, r => r.GetAsync(requestUri), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
-        /// <summary>
-        /// Sends a GET request to the specified URI, retrying the request if it fails.
-        /// </summary>
-        /// <param name="httpClient">The HttpClient instance.</param>
-        /// <param name="requestUri">The URI to which the request is sent.</param>
-        /// <param name="retries">The number of times to retry the request if it fails.</param>
-        /// <param name="retryWaitMS">The wait time in milliseconds between retries.</param>
-        /// <param name="autoTimeoutIncrement">The increment value for the timeout in case of a timeout exception.</param>
-        /// <returns>The byte[] response.</returns>
-        public static async Task<byte[]> GetByteArrayAsync(this HttpClient httpClient, string requestUri, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static async Task<byte[]> GetByteArrayAsync(this HttpClient httpClient, ICommonLogger logger, ILoggingContext loggingContext, string requestUri, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            return await httpClient.ExecuteWithRetryAsync(r => r.GetByteArrayAsync(requestUri), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(logger, loggingContext, r => r.GetByteArrayAsync(requestUri), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
-        /// <summary>
-        /// Sends a GET request to the specified URI, retrying the request if it fails.
-        /// </summary>
-        /// <param name="httpClient">The HttpClient instance.</param>
-        /// <param name="requestUri">The URI to which the request is sent.</param>
-        /// <param name="retries">The number of times to retry the request if it fails.</param>
-        /// <param name="retryWaitMS">The wait time in milliseconds between retries.</param>
-        /// <param name="autoTimeoutIncrement">The increment value for the timeout in case of a timeout exception.</param>
-        /// <returns>The Stream response.</returns>
-        public static async Task<Stream> GetStreamAsync(this HttpClient httpClient, Uri requestUri, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static async Task<Stream> GetStreamAsync(this HttpClient httpClient, ICommonLogger logger, ILoggingContext loggingContext, Uri requestUri, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            return await httpClient.ExecuteWithRetryAsync(r => r.GetStreamAsync(requestUri), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(logger, loggingContext, r => r.GetStreamAsync(requestUri), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
-        /// <summary>
-        /// Sends a GET request to the specified URI, retrying the request if it fails.
-        /// </summary>
-        /// <param name="httpClient">The HttpClient instance.</param>
-        /// <param name="requestUri">The URI to which the request is sent.</param>
-        /// <param name="retries">The number of times to retry the request if it fails.</param>
-        /// <param name="retryWaitMS">The wait time in milliseconds between retries.</param>
-        /// <param name="autoTimeoutIncrement">The increment value for the timeout in case of a timeout exception.</param>
-        /// <returns>The string response.</returns>
-        public static async Task<string> GetStringAsync(this HttpClient httpClient, string requestUri, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static async Task<string> GetStringAsync(this HttpClient httpClient, ICommonLogger logger, ILoggingContext loggingContext, string requestUri, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            return await httpClient.ExecuteWithRetryAsync(r => r.GetStringAsync(requestUri), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(logger, loggingContext, r => r.GetStringAsync(requestUri), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
-        /// <summary>
-        /// Sends a POST request to the specified URI, retrying the request if it fails.
-        /// </summary>
-        /// <param name="httpClient">The HttpClient instance.</param>
-        /// <param name="requestUri">The URI to which the request is sent.</param>
-        /// <param name="content">The HTTP content to send.</param>
-        /// <param name="cancellationToken">The cancellation token to cancel operation.</param>
-        /// <param name="retries">The number of times to retry the request if it fails.</param>
-        /// <param name="retryWaitMS">The wait time in milliseconds between retries.</param>
-        /// <param name="autoTimeoutIncrement">The increment value for the timeout in case of a timeout exception.</param>
-        /// <returns>The HTTP response message.</returns>
-        public static async Task<HttpResponseMessage> PostAsync(this HttpClient httpClient, string requestUri, HttpContent content, CancellationToken cancellationToken, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static async Task<HttpResponseMessage> PostAsync(this HttpClient httpClient, ICommonLogger logger, ILoggingContext loggingContext, string requestUri, HttpContent content, CancellationToken cancellationToken, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            return await httpClient.ExecuteWithRetryAsync(r => r.PostAsync(requestUri, content, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(logger, loggingContext, r => r.PostAsync(requestUri, content, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
-        /// <summary>
-        /// Sends a POST request to the specified URI with the specified content, retrying the request if it fails.
-        /// </summary>
-        /// <param name="httpClient">The HttpClient instance.</param>
-        /// <param name="requestUri">The URI to which the request is sent.</param>
-        /// <param name="content">The HTTP content to send.</param>
-        /// <param name="retries">The number of times to retry the request if it fails.</param>
-        /// <param name="retryWaitMS">The wait time in milliseconds between retries.</param>
-        /// <param name="autoTimeoutIncrement">The increment value for the timeout in case of a timeout exception.</param>
-        /// <returns>The HTTP response message.</returns>
-        public static async Task<HttpResponseMessage> PostAsync(this HttpClient httpClient, Uri requestUri, HttpContent content, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static async Task<HttpResponseMessage> PostAsync(this HttpClient httpClient, ICommonLogger logger, ILoggingContext loggingContext, Uri requestUri, HttpContent content, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            return await httpClient.ExecuteWithRetryAsync(r => r.PostAsync(requestUri, content), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(logger, loggingContext, r => r.PostAsync(requestUri, content), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
-        /// <summary>
-        /// Sends a PUT request to the specified URI with the specified content, retrying the request if it fails.
-        /// </summary>
-        /// <param name="httpClient">The HttpClient instance.</param>
-        /// <param name="requestUri">The URI to which the request is sent.</param>
-        /// <param name="content">The HTTP content to send.</param>
-        /// <param name="cancellationToken">The cancellation token to cancel operation.</param>
-        /// <param name="retries">The number of times to retry the request if it fails.</param>
-        /// <param name="retryWaitMS">The wait time in milliseconds between retries.</param>
-        /// <param name="autoTimeoutIncrement">The increment value for the timeout in case of a timeout exception.</param>
-        /// <returns>The HTTP response message.</returns>
-        public static async Task<HttpResponseMessage> PutAsync(this HttpClient httpClient, string requestUri, HttpContent content, CancellationToken cancellationToken, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static async Task<HttpResponseMessage> PutAsync(this HttpClient httpClient, ICommonLogger logger, ILoggingContext loggingContext, string requestUri, HttpContent content, CancellationToken cancellationToken, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            return await httpClient.ExecuteWithRetryAsync(r => r.PutAsync(requestUri, content, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(logger, loggingContext, r => r.PutAsync(requestUri, content, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
-        /// <summary>
-        /// Sends a PUT request to the specified URI with the specified content, retrying the request if it fails.
-        /// </summary>
-        /// <param name="httpClient">The HttpClient instance.</param>
-        /// <param name="requestUri">The URI to which the request is sent.</param>
-        /// <param name="content">The HTTP content to send.</param>
-        /// <param name="cancellationToken">The cancellation token to cancel operation.</param>
-        /// <param name="retries">The number of times to retry the request if it fails.</param>
-        /// <param name="retryWaitMS">The wait time in milliseconds between retries.</param>
-        /// <param name="autoTimeoutIncrement">The increment value for the timeout in case of a timeout exception.</param>
-        /// <returns>The HTTP response message.</returns>
-        public static async Task<HttpResponseMessage> PutAsync(this HttpClient httpClient, Uri requestUri, HttpContent content, CancellationToken cancellationToken, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static async Task<HttpResponseMessage> PutAsync(this HttpClient httpClient, ICommonLogger logger, ILoggingContext loggingContext, Uri requestUri, HttpContent content, CancellationToken cancellationToken, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            return await httpClient.ExecuteWithRetryAsync(r => r.PutAsync(requestUri, content, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(logger, loggingContext, r => r.PutAsync(requestUri, content, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
-        /// <summary>
-        /// Sends an HTTP request to the specified URI with the specified content, retrying the request if it fails.
-        /// </summary>
-        /// <param name="httpClient">The HttpClient instance.</param>
-        /// <param name="request">The HTTP request message to send.</param>
-        /// <param name="retries">The number of times to retry the request if it fails.</param>
-        /// <param name="retryWaitMS">The wait time in milliseconds between retries.</param>
-        /// <param name="autoTimeoutIncrement">The increment value for the timeout in case of a timeout exception.</param>
-        /// <returns>The HTTP response message.</returns>
-        public static async Task<HttpResponseMessage> SendAsync(this HttpClient httpClient, HttpRequestMessage request, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static async Task<HttpResponseMessage> SendAsync(this HttpClient httpClient, ICommonLogger logger, ILoggingContext loggingContext, HttpRequestMessage request, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            return await httpClient.ExecuteWithRetryAsync(r => r.SendAsync(request), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(logger, loggingContext, r => r.SendAsync(request), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
-        /// <summary>
-        /// Sends an HTTP request to the specified URI with the specified content, retrying the request if it fails.
-        /// </summary>
-        /// <param name="httpClient">The HttpClient instance.</param>
-        /// <param name="request">The HTTP request message to send.</param>
-        /// <param name="cancellationToken">The cancellation token to cancel operation.</param>
-        /// <param name="retries">The number of times to retry the request if it fails.</param>
-        /// <param name="retryWaitMS">The wait time in milliseconds between retries.</param>
-        /// <param name="autoTimeoutIncrement">The increment value for the timeout in case of a timeout exception.</param>
-        /// <returns>The HTTP response message.</returns>
-        public static async Task<HttpResponseMessage> SendAsync(this HttpClient httpClient, HttpRequestMessage request, CancellationToken cancellationToken, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static async Task<HttpResponseMessage> SendAsync(this HttpClient httpClient, ICommonLogger logger, ILoggingContext loggingContext, HttpRequestMessage request, CancellationToken cancellationToken, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            return await httpClient.ExecuteWithRetryAsync(r => r.SendAsync(request, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(logger, loggingContext, r => r.SendAsync(request, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
-        /// <summary>
-        /// Sends an HTTP request to the specified URI with the specified content, retrying the request if it fails.
-        /// </summary>
-        /// <param name="httpClient">The HttpClient instance.</param>
-        /// <param name="request">The HTTP request message to send.</param>
-        /// <param name="completionOption">The HttpCompletionOption value to use when sending the request.</param>
-        /// <param name="retries">The number of times to retry the request if it fails.</param>
-        /// <param name="retryWaitMS">The wait time in milliseconds between retries.</param>
-        /// <param name="autoTimeoutIncrement">The increment value for the timeout in case of a timeout exception.</param>
-        /// <returns>The HTTP response message.</returns>
-        public static async Task<HttpResponseMessage> SendAsync(this HttpClient httpClient, HttpRequestMessage request, HttpCompletionOption completionOption, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static async Task<HttpResponseMessage> SendAsync(this HttpClient httpClient, ICommonLogger logger, ILoggingContext loggingContext, HttpRequestMessage request, HttpCompletionOption completionOption, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            return await httpClient.ExecuteWithRetryAsync(r => r.SendAsync(request, completionOption), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(logger, loggingContext, r => r.SendAsync(request, completionOption), retries, retryWaitMS, autoTimeoutIncrement);
         }
     }
 }

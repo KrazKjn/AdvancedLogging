@@ -1,8 +1,7 @@
 using AdvancedLogging.Constants;
 using AdvancedLogging.Extensions;
-using AdvancedLogging.Loggers;
-using AdvancedLogging.Logging;
 using AdvancedLogging.Interfaces;
+using AdvancedLogging.Logging.Interfaces;
 using AdvancedLogging.Models;
 using System;
 using System.Collections.Concurrent;
@@ -15,7 +14,7 @@ using System.Reflection;
 
 namespace AdvancedLogging.Utilities
 {
-    public class LoggingUtils
+    public static class LoggingUtils
     {
         private enum DebugPrintLevels
         {
@@ -54,48 +53,11 @@ namespace AdvancedLogging.Utilities
 
         public static ConcurrentDictionary<string, int> DebugPrintLevel => _debugPrintLevel.Value;
 
-#if __IOS__
-        private static ILoggerUtility? _loggerUtility;
-        public static ILoggerUtility? LoggerUtility
-#else
-        private static ILoggerUtility _loggerUtility;
-        public static ILoggerUtility LoggerUtility
-#endif		
-        {
-            get { return _loggerUtility; }
+        public static bool IsRemotingAppender(ICommonLogger logger) => logger.IsRemoting;
 
-            set { _loggerUtility = value; }
-        }
+        public static bool IsLoggingToConsole(ICommonLogger logger) => logger.IsLoggingToConsole;
 
-        private static ICommonLogger _log = null;
-
-        public static ICommonLogger Logger
-        {
-            get { return _log; }
-
-            set
-            {
-                _log = value;
-#if __IOS__
-                m_bRemotingLogging = false;
-#else
-                _remotingLogging = _log.IsRemoting;
-#endif
-            }
-        }
-
-        private static bool _remotingLogging = false;
-        public static bool IsRemotingAppender
-        {
-            get
-            {
-                return _remotingLogging;
-            }
-        }
-
-        public static bool IsLoggingToConsole => _log?.IsLoggingToConsole ?? false;
-
-        public static bool IsLoggingToDebugWindow => _log?.IsLoggingToDebugWindow ?? false;
+        public static bool IsLoggingToDebugWindow(ICommonLogger logger) => logger.IsLoggingToDebugWindow;
 
         private static int _consoleStatus = -1;
         public static bool ConsoleAttached
@@ -109,10 +71,8 @@ namespace AdvancedLogging.Utilities
                         _consoleStatus = Console.WindowHeight;
                         _consoleStatus = 1;
                     }
-                    catch (Exception ex)
+                    catch
                     {
-                        if (ShouldLogToDebugWindow())
-                            Debug.WriteLine(ex.Message);
                         _consoleStatus = 0;
                     }
                 }
@@ -120,122 +80,118 @@ namespace AdvancedLogging.Utilities
             }
         }
 
-        public static bool ShouldLogToConsole()
+        public static bool ShouldLogToConsole(ICommonLogger logger)
         {
-            return !LoggingUtils.IsLoggingToConsole && ConsoleAttached && ApplicationSettings.LogToConsole;
+            return !IsLoggingToConsole(logger) && ConsoleAttached && ApplicationSettings.LogToConsole;
         }
 
-        public static bool ShouldLogToDebugWindow()
+        public static bool ShouldLogToDebugWindow(ICommonLogger logger)
         {
-            return !LoggingUtils.IsLoggingToDebugWindow && ApplicationSettings.LogToDebugWindow;
+            return !IsLoggingToDebugWindow(logger) && ApplicationSettings.LogToDebugWindow;
         }
 
-        public static void LogFunction(MethodBase function, object parameters, bool error = false, string logPrefix = "")
+        public static void LogFunction(ICommonLogger logger, ILoggingContext loggingContext, MethodBase function, object parameters, bool error = false, string logPrefix = "")
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { function, parameters, error, logPrefix }))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { function, parameters, error, logPrefix }))
             {
-                LogFunctionNoAutoLog(function, parameters, error, logPrefix);
+                LogFunctionNoAutoLog(logger, loggingContext, function, parameters, error, logPrefix);
             }
         }
-#if __IOS__
-        public static void LogFunctionNoAutoLog(MethodBase function, object parameters, bool error = false, string logPrefix = "", Exception? exception = null)
-#else
-        public static void LogFunctionNoAutoLog(MethodBase function, object parameters, bool error = false, string logPrefix = "", Exception exception = null)
-#endif
+
+        public static void LogFunctionNoAutoLog(ICommonLogger logger, ILoggingContext loggingContext, MethodBase function, object parameters, bool error = false, string logPrefix = "", Exception exception = null)
         {
             try
             {
                 string message = logPrefix;
                 StackTrace st = new StackTrace();
                 StackFrame[] arrFrames = st.GetFrames();
-                string CallPath = Log4NetLogger.FunctionFullPath(arrFrames.Skip(1).ToArray());
+                string CallPath = Loggers.Log4NetLogger.FunctionFullPath(arrFrames.Skip(1).ToArray());
 
                 ParameterInfo[] pars = function.GetParameters();
                 message += string.Format("[Func: {0}", function.DeclaringType.FullName + " (" + function.MemberType.ToString() + ")]");
                 if (error)
-                    LoggingUtils.WriteError(message);
+                    WriteError(logger, message);
                 else
                 {
-                    Logger?.Debug(message);
-                    if (ShouldLogToDebugWindow())
+                    logger.Debug(message);
+                    if (ShouldLogToDebugWindow(logger))
                         Debug.WriteLine(message);
                 }
-                if (ShouldLogToConsole())
+                if (ShouldLogToConsole(logger))
                     Console.WriteLine(message);
                 if (error)
                 {
                     if (exception == null)
                     {
-                        Logger?.ErrorFormat("\tCall Path: {0}", CallPath);
+                        logger.ErrorFormat("\tCall Path: {0}", CallPath);
                     }
                 }
-                ProcessParameters(pars, parameters, error, logPrefix);
+                ProcessParameters(logger, pars, parameters, error, logPrefix);
                 if (exception != null)
                 {
-                    WriteError("\t" + new string('*', 120));
-                    WriteErrorFormat("\tException Error: {0}", exception.GetType().Name + ": " + exception.Message);
-                    WriteError("\t" + new string('*', 120));
-                    WriteErrorFormat("\tCall Path: {0}", CallPath);
-                    WriteError("\tSource: " + exception.Source);
-                    WriteError("\tTargetSite: " + exception.TargetSite);
-                    // {"Attempted to divide by zero."}
+                    WriteError(logger, "\t" + new string('*', 120));
+                    WriteErrorFormat(logger, "\tException Error: {0}", exception.GetType().Name + ": " + exception.Message);
+                    WriteError(logger, "\t" + new string('*', 120));
+                    WriteErrorFormat(logger, "\tCall Path: {0}", CallPath);
+                    WriteError(logger, "\tSource: " + exception.Source);
+                    WriteError(logger, "\tTargetSite: " + exception.TargetSite);
                     foreach (string strItem in GetAllFootprints(exception))
                     {
-                        WriteError("\t" + strItem);
+                        WriteError(logger, "\t" + strItem);
                     }
-                    WriteError("\t" + new string('*', 120));
+                    WriteError(logger, "\t" + new string('*', 120));
                 }
             }
             catch (Exception ex)
             {
-                LoggingUtils.WriteError(logPrefix + "Error in LogFunction: ", ex);
-                if (ShouldLogToConsole())
+                WriteError(logger, logPrefix + "Error in LogFunction: ", ex);
+                if (ShouldLogToConsole(logger))
                     Console.WriteLine(logPrefix + string.Format("Error in LogFunction: {0}", ex));
             }
             finally
             {
                 if (error)
-                    LoggingUtils.WriteError("[End Func]");
+                    WriteError(logger, "[End Func]");
                 else
                 {
-                    Logger?.Debug("[End Func]");
-                    if (ShouldLogToDebugWindow())
+                    logger.Debug("[End Func]");
+                    if (ShouldLogToDebugWindow(logger))
                         Debug.WriteLine("[End Func]");
                 }
-                if (ShouldLogToConsole())
+                if (ShouldLogToConsole(logger))
                     Console.WriteLine("[End Func]");
             }
         }
-        public static void ProcessParameters(ParameterInfo[] pars, object parameters, bool error = false, string logPrefix = "")
+        public static void ProcessParameters(ICommonLogger logger, ILoggingContext loggingContext, ParameterInfo[] pars, object parameters, bool error = false, string logPrefix = "")
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { pars, parameters, error, logPrefix }))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { pars, parameters, error, logPrefix }))
             {
-                ProcessParametersNoAutoLog(pars, parameters, error, logPrefix);
+                ProcessParametersNoAutoLog(logger, pars, parameters, error, logPrefix);
             }
         }
-        private static bool PrintItForProcessParametersNoAutoLog(int debugLevel, string logPrefix, string message, bool error)
+        private static bool PrintItForProcessParametersNoAutoLog(ICommonLogger logger, int debugLevel, string logPrefix, string message, bool error)
         {
             if (error)
             {
-                WriteErrorPrefixNoAutoLog(logPrefix, message);
+                WriteErrorPrefixNoAutoLog(logger, logPrefix, message);
                 return true;
             }
             else
             {
                 if (debugLevel == 0)
                 {
-                    WriteDebugPrefixNoAutoLog(logPrefix, message);
+                    WriteDebugPrefixNoAutoLog(logger, logPrefix, message);
                     return true;
                 }
                 else
-                    return WriteDebugPrefixNoAutoLog(debugLevel, logPrefix, message);
+                    return WriteDebugPrefixNoAutoLog(logger, debugLevel, logPrefix, message);
             }
         }
-        public static void ProcessParametersNoAutoLog(ParameterInfo[] pars, object parameters, bool error = false, string logPrefix = "", int debugLevel = 4)
+        public static void ProcessParametersNoAutoLog(ICommonLogger logger, ParameterInfo[] pars, object parameters, bool error = false, string logPrefix = "", int debugLevel = 4)
         {
             if (pars == null || pars.Length == 0)
             {
-                throw new ArgumentOutOfRangeException("Parameter [pars] is empty.");
+                return;
             }
             int i = 0;
             string message = "";
@@ -245,10 +201,10 @@ namespace AdvancedLogging.Utilities
                 string fullName = pars[i].ParameterType.FullName ?? pars[i].ParameterType.Name;
                 System.Type type = pars[i].ParameterType;
 
-                while (pars[i].IsOut && i < pars.Length)
+                while (i < pars.Length && pars[i].IsOut)
                 {
                     message = string.Format("({0}){1} N/A (Out)", pars[i].ParameterType.Name, pars[i].Name);
-                    PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error);
+                    PrintItForProcessParametersNoAutoLog(logger, debugLevel, logPrefix, message, error);
                     i++;
                     if (i < pars.Length)
                     {
@@ -258,31 +214,23 @@ namespace AdvancedLogging.Utilities
                     }
                 }
 
+                if (i >= pars.Length) continue;
+
                 List<string> valueTypes = new List<string>();
                 bool isArray = false;
                 int dimensions = 0;
-#if DEBUG
-                if (ApplicationSettings.Logger?.LogLevel >= debugLevel && ShouldLogToDebugWindow())
-                    Debug.WriteLine((logPrefix == "" ? "-> " : logPrefix) + fullName);
-#endif
+
                 if (fullName.EndsWith("&"))
                 {
                     fullName = fullName.Replace("&", "");
                 }
                 if (fullName.EndsWith("[]"))
                 {
-#if DEBUG
-                    isArray = pars[i].ParameterType.IsArray;
-#endif
                     isArray = true;
                     fullName = fullName.Replace("[]", "");
                 }
                 if (fullName.Contains('`') && fullName.Contains("[["))
                 {
-                    // "System.Collections.Generic.List`1[[System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089]"
-#if DEBUG
-                    isArray = pars[i].ParameterType.IsArray;
-#endif
                     isArray = true;
                     string[] items = fullName.Split('`');
                     fullName = items[0];
@@ -309,829 +257,20 @@ namespace AdvancedLogging.Utilities
                 {
                     case "System.Data.SqlClient.SqlCommand":
                         message = string.Format("({0}){1}: {2}", i < pars.Length ? name : "???", pi.Name, ApplicationSettings.Logger?.LogLevel >= DebugPrintLevel[ConfigurationSetting.Log_SqlParameters] ? "(See Command/Parameters/Values Below)" : "(See Command Below.  Set LogLevel >= " + DebugPrintLevel[ConfigurationSetting.Log_SqlParameters].ToString() + " for Parameters/Values)");
-                        if (PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error))
+                        if (PrintItForProcessParametersNoAutoLog(logger, debugLevel, logPrefix, message, error))
                         {
                             System.Data.SqlClient.SqlCommand sc = (System.Data.SqlClient.SqlCommand)pi.GetValue(parameters, null);
                             if (sc == null)
                             {
                                 message = string.Format("\t{0}", LogFormats.NULL_TEXT);
                                 if (error)
-                                    WriteErrorPrefixNoAutoLog(logPrefix, message);
+                                    WriteErrorPrefixNoAutoLog(logger, logPrefix, message);
                                 else
-                                    WriteDebugPrefixNoAutoLog(logPrefix, message);
+                                    WriteDebugPrefixNoAutoLog(logger, logPrefix, message);
                             }
                             else
                             {
-                                //
-                                // Call LoggingExtensions.Log Extension Method
-                                //
                                 sc.Log(debugLevel, logPrefix);
-                            }
-                        }
-                        break;
-                    case "System.Collections.Generic.List":
-                        message = string.Format("({0}){1} ...", i < pars.Length ? name : "???", pi.Name);
-                        if (PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error) && ApplicationSettings.Logger?.LogLevel >= DebugPrintLevel[ConfigurationSetting.Log_ComplexParameterValues])
-                        {
-                            switch (valueTypes[0])
-                            {
-                                case "System.String":
-                                    {
-                                        List<string> values = (List<string>)pi.GetValue(parameters, null);
-                                        if (values == null)
-                                        {
-                                            message = $"\t{LogFormats.NULL_TEXT}";
-                                            if (error)
-                                                WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                            else
-                                                WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                        }
-                                        else
-                                        {
-                                            foreach (string value in values)
-                                            {
-                                                message = string.Format("\t{0}", value);
-                                                if (error)
-                                                    WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                else
-                                                    WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                            }
-                                        }
-                                    }
-                                    break;
-                                case "System.Int":
-                                    {
-                                        List<int> values = (List<int>)pi.GetValue(parameters, null);
-                                        if (values == null)
-                                        {
-                                            message = $"\t{LogFormats.NULL_TEXT}";
-                                            if (error)
-                                                WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                            else
-                                                WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                        }
-                                        else
-                                        {
-                                            foreach (int value in values)
-                                            {
-                                                message = string.Format("\t{0}", value.ToString());
-                                                if (error)
-                                                    WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                else
-                                                    WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                            }
-                                        }
-                                    }
-                                    break;
-                            }
-                        }
-                        break;
-                    case "System.Collections.Generic.SortedDictionary":
-                        message = string.Format("({0}){1} ...", i < pars.Length ? name : "???", pi.Name);
-                        if (PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error) && ApplicationSettings.Logger?.LogLevel >= DebugPrintLevel[ConfigurationSetting.Log_ComplexParameterValues])
-                        {
-                            switch (valueTypes[0])
-                            {
-                                case "System.String":
-                                    {
-                                        switch (valueTypes[1])
-                                        {
-                                            case "System.String":
-                                                {
-                                                    SortedDictionary<string, string> values = (SortedDictionary<string, string>)pi.GetValue(parameters, null);
-                                                    if (values == null)
-                                                    {
-                                                        message = $"\t{LogFormats.NULL_TEXT}";
-                                                        if (error)
-                                                            WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                        else
-                                                            WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                    }
-                                                    else
-                                                    {
-                                                        foreach (var value in values)
-                                                        {
-                                                            message = string.Format("\t{0} - {1}", value.Key, value.Value);
-                                                            if (error)
-                                                                WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                            else
-                                                                WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                        }
-                                                    }
-                                                }
-                                                break;
-                                            case "System.Int16":
-                                            case "System.Int32":
-                                            case "System.Int64":
-                                                {
-                                                    SortedDictionary<string, int> values = (SortedDictionary<string, int>)pi.GetValue(parameters, null);
-                                                    if (values == null)
-                                                    {
-                                                        message = $"\t{LogFormats.NULL_TEXT}";
-                                                        if (error)
-                                                            WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                        else
-                                                            WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                    }
-                                                    else
-                                                    {
-                                                        foreach (var value in values)
-                                                        {
-                                                            message = string.Format("\t{0} - {1}", value.Key, value.Value);
-                                                            if (error)
-                                                                WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                            else
-                                                                WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                        }
-                                                    }
-                                                }
-                                                break;
-                                        }
-                                    }
-                                    break;
-                                case "System.Int":
-                                case "System.Int32":
-                                case "System.Int64":
-                                    {
-                                        switch (valueTypes[1])
-                                        {
-                                            case "System.String":
-                                                {
-                                                    SortedDictionary<int, string> values = (SortedDictionary<int, string>)pi.GetValue(parameters, null);
-                                                    if (values == null)
-                                                    {
-                                                        message = $"\t{LogFormats.NULL_TEXT}";
-                                                        if (error)
-                                                            WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                        else
-                                                            WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                    }
-                                                    else
-                                                    {
-                                                        foreach (var value in values)
-                                                        {
-                                                            message = string.Format("\t{0} - {1}", value.Key, value.Value);
-                                                            if (error)
-                                                                WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                            else
-                                                                WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                        }
-                                                    }
-                                                }
-                                                break;
-                                            case "System.Int16":
-                                            case "System.Int32":
-                                            case "System.Int64":
-                                                {
-                                                    SortedDictionary<int, int> values = (SortedDictionary<int, int>)pi.GetValue(parameters, null);
-                                                    if (values == null)
-                                                    {
-                                                        message = $"\t{LogFormats.NULL_TEXT}";
-                                                        if (error)
-                                                            WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                        else
-                                                            WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                    }
-                                                    else
-                                                    {
-                                                        foreach (var value in values)
-                                                        {
-                                                            message = string.Format("\t{0} - {1}", value.Key, value.Value);
-                                                            if (error)
-                                                                WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                            else
-                                                                WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                        }
-                                                    }
-                                                }
-                                                break;
-                                        }
-                                    }
-                                    break;
-                            }
-                        }
-                        break;
-                    case "System.Collections.Generic.Dictionary":
-                        message = string.Format("({0}){1} ...", i < pars.Length ? name : "???", pi.Name);
-                        if (PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error) && ApplicationSettings.Logger?.LogLevel >= DebugPrintLevel[ConfigurationSetting.Log_ComplexParameterValues])
-                        {
-                            switch (valueTypes[0])
-                            {
-                                case "System.String":
-                                    {
-                                        switch (valueTypes[1])
-                                        {
-                                            case "System.String":
-                                                {
-                                                    Dictionary<string, string> values = (Dictionary<string, string>)pi.GetValue(parameters, null);
-                                                    if (values == null)
-                                                    {
-                                                        message = $"\t{LogFormats.NULL_TEXT}";
-                                                        if (error)
-                                                            WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                        else
-                                                            WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                    }
-                                                    else
-                                                    {
-                                                        foreach (var value in values)
-                                                        {
-                                                            message = string.Format("\t{0} - {1}", value.Key, value.Value);
-                                                            if (error)
-                                                                WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                            else
-                                                                WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                        }
-                                                    }
-                                                }
-                                                break;
-                                            case "System.Int16":
-                                            case "System.Int32":
-                                            case "System.Int64":
-                                                {
-                                                    Dictionary<string, int> values = (Dictionary<string, int>)pi.GetValue(parameters, null);
-                                                    if (values == null)
-                                                    {
-                                                        message = $"\t{LogFormats.NULL_TEXT}";
-                                                        if (error)
-                                                            WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                        else
-                                                            WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                    }
-                                                    else
-                                                    {
-                                                        foreach (var value in values)
-                                                        {
-                                                            message = string.Format("\t{0} - {1}", value.Key, value.Value);
-                                                            if (error)
-                                                                WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                            else
-                                                                WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                        }
-                                                    }
-                                                }
-                                                break;
-                                        }
-                                    }
-                                    break;
-                                case "System.Int":
-                                case "System.Int32":
-                                case "System.Int64":
-                                    {
-                                        switch (valueTypes[1])
-                                        {
-                                            case "System.String":
-                                                {
-                                                    Dictionary<int, string> values = (Dictionary<int, string>)pi.GetValue(parameters, null);
-                                                    if (values == null)
-                                                    {
-                                                        message = $"\t{LogFormats.NULL_TEXT}";
-                                                        if (error)
-                                                            WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                        else
-                                                            WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                    }
-                                                    else
-                                                    {
-                                                        foreach (var value in values)
-                                                        {
-                                                            message = string.Format("\t{0} - {1}", value.Key, value.Value);
-                                                            if (error)
-                                                                WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                            else
-                                                                WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                        }
-                                                    }
-                                                }
-                                                break;
-                                            case "System.Int16":
-                                            case "System.Int32":
-                                            case "System.Int64":
-                                                {
-                                                    Dictionary<int, int> values = (Dictionary<int, int>)pi.GetValue(parameters, null);
-                                                    if (values == null)
-                                                    {
-                                                        message = $"\t{LogFormats.NULL_TEXT}";
-                                                        if (error)
-                                                            WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                        else
-                                                            WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                    }
-                                                    else
-                                                    {
-                                                        foreach (var value in values)
-                                                        {
-                                                            message = string.Format("\t{0} - {1}", value.Key, value.Value);
-                                                            if (error)
-                                                                WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                            else
-                                                                WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                        }
-                                                    }
-                                                }
-                                                break;
-                                        }
-                                    }
-                                    break;
-                            }
-                        }
-                        break;
-                    case "System.Collections.Concurrent.ConcurrentDictionary":
-                        message = string.Format("({0}){1} ...", i < pars.Length ? name : "???", pi.Name);
-                        if (PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error) && ApplicationSettings.Logger?.LogLevel >= DebugPrintLevel[ConfigurationSetting.Log_ComplexParameterValues])
-                        {
-                            switch (valueTypes[0])
-                            {
-                                case "System.String":
-                                    {
-                                        switch (valueTypes[1])
-                                        {
-                                            case "System.String":
-                                                {
-                                                    ConcurrentDictionary<string, string> values = (ConcurrentDictionary<string, string>)pi.GetValue(parameters, null);
-                                                    if (values == null)
-                                                    {
-                                                        message = $"\t{LogFormats.NULL_TEXT}";
-                                                        if (error)
-                                                            WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                        else
-                                                            WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                    }
-                                                    else
-                                                    {
-                                                        foreach (var value in values)
-                                                        {
-                                                            message = string.Format("\t{0} - {1}", value.Key, value.Value);
-                                                            if (error)
-                                                                WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                            else
-                                                                WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                        }
-                                                    }
-                                                }
-                                                break;
-                                            case "System.Int16":
-                                            case "System.Int32":
-                                            case "System.Int64":
-                                                {
-                                                    ConcurrentDictionary<string, int> values = (ConcurrentDictionary<string, int>)pi.GetValue(parameters, null);
-                                                    if (values == null)
-                                                    {
-                                                        message = $"\t{LogFormats.NULL_TEXT}";
-                                                        if (error)
-                                                            WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                        else
-                                                            WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                    }
-                                                    else
-                                                    {
-                                                        foreach (var value in values)
-                                                        {
-                                                            message = string.Format("\t{0} - {1}", value.Key, value.Value);
-                                                            if (error)
-                                                                WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                            else
-                                                                WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                        }
-                                                    }
-                                                }
-                                                break;
-                                        }
-                                    }
-                                    break;
-                                case "System.Int":
-                                case "System.Int32":
-                                case "System.Int64":
-                                    {
-                                        switch (valueTypes[1])
-                                        {
-                                            case "System.String":
-                                                {
-                                                    ConcurrentDictionary<int, string> values = (ConcurrentDictionary<int, string>)pi.GetValue(parameters, null);
-                                                    if (values == null)
-                                                    {
-                                                        message = $"\t{LogFormats.NULL_TEXT}";
-                                                        if (error)
-                                                            WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                        else
-                                                            WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                    }
-                                                    else
-                                                    {
-                                                        foreach (var value in values)
-                                                        {
-                                                            message = string.Format("\t{0} - {1}", value.Key, value.Value);
-                                                            if (error)
-                                                                WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                            else
-                                                                WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                        }
-                                                    }
-                                                }
-                                                break;
-                                            case "System.Int16":
-                                            case "System.Int32":
-                                            case "System.Int64":
-                                                {
-                                                    ConcurrentDictionary<int, int> values = (ConcurrentDictionary<int, int>)pi.GetValue(parameters, null);
-                                                    if (values == null)
-                                                    {
-                                                        message = $"\t{LogFormats.NULL_TEXT}";
-                                                        if (error)
-                                                            WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                        else
-                                                            WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                    }
-                                                    else
-                                                    {
-                                                        foreach (var value in values)
-                                                        {
-                                                            message = string.Format("\t{0} - {1}", value.Key, value.Value);
-                                                            if (error)
-                                                                WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                            else
-                                                                WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                        }
-                                                    }
-                                                }
-                                                break;
-                                        }
-                                    }
-                                    break;
-                            }
-                        }
-                        break;
-                    case "System.Collections.Generic.SortedList":
-                        message = string.Format("({0}){1} ...", i < pars.Length ? name : "???", pi.Name);
-                        if (PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error) && ApplicationSettings.Logger?.LogLevel >= DebugPrintLevel[ConfigurationSetting.Log_ComplexParameterValues])
-                        {
-                            switch (valueTypes[0])
-                            {
-                                case "System.String":
-                                    {
-                                        switch (valueTypes[1])
-                                        {
-                                            case "System.String":
-                                                {
-                                                    SortedList<string, string> values = (SortedList<string, string>)pi.GetValue(parameters, null);
-                                                    if (values == null)
-                                                    {
-                                                        message = $"\t{LogFormats.NULL_TEXT}";
-                                                        if (error)
-                                                            WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                        else
-                                                            WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                    }
-                                                    else
-                                                    {
-                                                        foreach (var value in values)
-                                                        {
-                                                            message = string.Format("\t{0} - {1}", value.Key, value.Value);
-                                                            if (error)
-                                                                WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                            else
-                                                                WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                        }
-                                                    }
-                                                }
-                                                break;
-                                            case "System.Int16":
-                                            case "System.Int32":
-                                            case "System.Int64":
-                                                {
-                                                    SortedList<string, int> values = (SortedList<string, int>)pi.GetValue(parameters, null);
-                                                    if (values == null)
-                                                    {
-                                                        message = $"\t{LogFormats.NULL_TEXT}";
-                                                        if (error)
-                                                            WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                        else
-                                                            WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                    }
-                                                    else
-                                                    {
-                                                        foreach (var value in values)
-                                                        {
-                                                            message = string.Format("\t{0} - {1}", value.Key, value.Value);
-                                                            if (error)
-                                                                WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                            else
-                                                                WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                        }
-                                                    }
-                                                }
-                                                break;
-                                        }
-                                    }
-                                    break;
-                                case "System.Int":
-                                case "System.Int32":
-                                case "System.Int64":
-                                    {
-                                        switch (valueTypes[1])
-                                        {
-                                            case "System.String":
-                                                {
-                                                    SortedList<int, string> values = (SortedList<int, string>)pi.GetValue(parameters, null);
-                                                    if (values == null)
-                                                    {
-                                                        message = $"\t{LogFormats.NULL_TEXT}";
-                                                        if (error)
-                                                            WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                        else
-                                                            WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                    }
-                                                    else
-                                                    {
-                                                        foreach (var value in values)
-                                                        {
-                                                            message = string.Format("\t{0} - {1}", value.Key, value.Value);
-                                                            if (error)
-                                                                WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                            else
-                                                                WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                        }
-                                                    }
-                                                }
-                                                break;
-                                            case "System.Int16":
-                                            case "System.Int32":
-                                            case "System.Int64":
-                                                {
-                                                    SortedList<int, int> values = (SortedList<int, int>)pi.GetValue(parameters, null);
-                                                    if (values == null)
-                                                    {
-                                                        message = $"\t{LogFormats.NULL_TEXT}";
-                                                        if (error)
-                                                            WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                        else
-                                                            WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                    }
-                                                    else
-                                                    {
-                                                        foreach (var value in values)
-                                                        {
-                                                            message = string.Format("\t{0} - {1}", value.Key, value.Value);
-                                                            if (error)
-                                                                WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                            else
-                                                                WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                        }
-                                                    }
-                                                }
-                                                break;
-                                        }
-                                    }
-                                    break;
-                            }
-                        }
-                        break;
-                    case "System.Array":
-                        message = string.Format("({0}){1} ...", i < pars.Length ? name : "???", pi.Name);
-                        if (PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error) && ApplicationSettings.Logger?.LogLevel >= DebugPrintLevel[ConfigurationSetting.Log_ComplexParameterValues])
-                        {
-                            if (!(pi.GetValue(parameters, null) is System.Array vArray))
-                            {
-                                message = $"\t{LogFormats.NULL_TEXT}";
-                                if (error)
-                                    WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                else
-                                    WriteDebugPrefixNoAutoLog(logPrefix, message);
-                            }
-                            else
-                            {
-                                foreach (var value in vArray)
-                                {
-                                    message = string.Format("\t{0}", value);
-                                    if (error)
-                                        WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                    else
-                                        WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                }
-                            }
-                        }
-                        break;
-                    case "AdvancedLogging.Logging.ICommonLogger":
-                    case "AdvancedLogging.Logging.CommonLogger":
-                        message = string.Format("({0}){1} ...", i < pars.Length ? name : "???", pi.Name);
-                        if (PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error) && ApplicationSettings.Logger?.LogLevel >= DebugPrintLevel[ConfigurationSetting.Log_ComplexParameterValues])
-                        {
-                            CommonLogger log = (CommonLogger)pi.GetValue(parameters, null);
-                            if (log == null)
-                            {
-                                message = $"\t{LogFormats.NULL_TEXT}";
-                                if (error)
-                                    WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                else
-                                    WriteDebugPrefixNoAutoLog(logPrefix, message);
-                            }
-                            else
-                            {
-                                //
-                                // Call LoggingExtensions.Log Extension Method
-                                //
-                                log.Log(debugLevel, logPrefix);
-                            }
-                        }
-                        break;
-                    case "System.Configuration.Configuration":
-                        message = string.Format("({0}){1} ...", i < pars.Length ? name : "???", pi.Name);
-                        PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error);
-                        break;
-                    case "System.Data.SqlClient.SqlParameter":
-                        message = string.Format("({0}){1} ...", i < pars.Length ? name : "???", pi.Name);
-                        if (PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error))
-                        {
-                            if (isArray)
-                            {
-                                var sqlParameters = (SqlParameter[])pi.GetValue(parameters, null);
-                                if (sqlParameters == null)
-                                {
-                                    message = $"\t{LogFormats.NULL_TEXT}";
-                                    if (error)
-                                        WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                    else
-                                        WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                }
-                                else
-                                {
-                                    if (sqlParameters.Length == 0)
-                                    {
-                                        if (error)
-                                            WriteErrorPrefixNoAutoLog(logPrefix, "\tParameters: (None)");
-                                        else
-                                            WriteDebugPrefixNoAutoLog(logPrefix, "\tParameters: (None)");
-                                    }
-                                    else
-                                    {
-                                        foreach (SqlParameter item in sqlParameters)
-                                        {
-                                            if (item.Direction == ParameterDirection.Input || item.Direction == ParameterDirection.InputOutput)
-                                            {
-                                                if (error)
-                                                    WriteErrorPrefixNoAutoLog(logPrefix, string.Format("\t({0}){1}: {2}", SqlDbTypeToString(item), item.ParameterName, (item.Value == System.DBNull.Value || item.Value == null) ? LogFormats.NULL_TEXT : item.Value.ToString()));
-                                                else
-                                                    WriteDebugPrefixNoAutoLog(logPrefix, string.Format("\t({0}){1}: {2}", SqlDbTypeToString(item), item.ParameterName, (item.Value == System.DBNull.Value || item.Value == null) ? LogFormats.NULL_TEXT : item.Value.ToString()));
-                                            }
-                                            else
-                                            {
-                                                if (error)
-                                                    WriteErrorPrefixNoAutoLog(logPrefix, string.Format("\t({0}){1}: {3}({2})", item.ParameterName, SqlDbTypeToString(item), item.Direction.ToString(), (item.Value == System.DBNull.Value || item.Value == null) ? LogFormats.NULL_TEXT : item.Value.ToString()));
-                                                else
-                                                    WriteDebugPrefixNoAutoLog(logPrefix, string.Format("\t({0}){1}: {3}({2})", item.ParameterName, SqlDbTypeToString(item), item.Direction.ToString(), (item.Value == System.DBNull.Value || item.Value == null) ? LogFormats.NULL_TEXT : item.Value.ToString()));
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                SqlParameter item = (SqlParameter)pi.GetValue(parameters, null);
-                                if (item == null)
-                                {
-                                    message = $"\t{LogFormats.NULL_TEXT}";
-                                    if (error)
-                                        WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                    else
-                                        WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                }
-                                else
-                                {
-                                    if (item.Direction == ParameterDirection.Input || item.Direction == ParameterDirection.InputOutput)
-                                    {
-                                        if (error)
-                                            WriteErrorPrefixNoAutoLog(logPrefix, string.Format("({0}){1}: {2}", SqlDbTypeToString(item), item.ParameterName, (item.Value == System.DBNull.Value || item.Value == null) ? LogFormats.NULL_TEXT : item.Value.ToString()));
-                                        else
-                                            WriteDebugPrefixNoAutoLog(logPrefix, string.Format("({0}){1}: {2}", SqlDbTypeToString(item), item.ParameterName, (item.Value == System.DBNull.Value || item.Value == null) ? LogFormats.NULL_TEXT : item.Value.ToString()));
-                                    }
-                                    else
-                                    {
-                                        if (error)
-                                            WriteErrorPrefixNoAutoLog(logPrefix, string.Format("({0}){1}: {3}({2})", item.ParameterName, SqlDbTypeToString(item), item.Direction.ToString(), (item.Value == System.DBNull.Value || item.Value == null) ? LogFormats.NULL_TEXT : item.Value.ToString()));
-                                        else
-                                            WriteDebugPrefixNoAutoLog(logPrefix, string.Format("({0}){1}: {3}({2})", item.ParameterName, SqlDbTypeToString(item), item.Direction.ToString(), (item.Value == System.DBNull.Value || item.Value == null) ? LogFormats.NULL_TEXT : item.Value.ToString()));
-                                    }
-                                }
-                            }
-                        }
-                        break;
-                    case "System.Data.SqlClient.SqlParameterCollection":
-                        message = string.Format("({0}){1} ...", i < pars.Length ? name : "???", pi.Name);
-                        PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error);
-                        //System.Data.SqlClient.SqlParameterCollection pc = (System.Data.SqlClient.SqlParameterCollection)pi.GetValue(parameters, null);
-                        //if (pc != null)
-                        //{
-                        //    if (ApplicationSettings.Logger?.LogLevel >= DebugPrintLevel[CLogger.Common_SqlParameters])
-                        //    {
-                        //        LogSQLData(pc, bSuppressFunctionDeclaration:true);
-                        //    }
-                        //}
-                        break;
-                    case "System.Security.Cryptography.X509Certificates.X509CertificateCollection":
-                        message = string.Format("({0}){1} ...", i < pars.Length ? name : "???", pi.Name);
-                        if (PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error) && ApplicationSettings.Logger?.LogLevel >= DebugPrintLevel[ConfigurationSetting.Log_ComplexParameterValues])
-                        {
-                            System.Security.Cryptography.X509Certificates.X509CertificateCollection values = (System.Security.Cryptography.X509Certificates.X509CertificateCollection)pi.GetValue(parameters, null);
-                            if (values == null)
-                            {
-                                message = $"\t{LogFormats.NULL_TEXT}";
-                                if (error)
-                                    WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                else
-                                    WriteDebugPrefixNoAutoLog(logPrefix, message);
-                            }
-                            else
-                            {
-                                //
-                                // Call LoggingExtensions.Log Extension Method
-                                //
-                                values.Log(debugLevel, logPrefix);
-                            }
-                        }
-                        break;
-                    case "System.Diagnostics.Stopwatch":
-                        message = string.Format("({0}){1} ...", i < pars.Length ? name : "???", pi.Name);
-                        if (PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error) && ApplicationSettings.Logger?.LogLevel >= DebugPrintLevel[ConfigurationSetting.Log_ComplexParameterValues])
-                        {
-                            Stopwatch sw = (Stopwatch)pi.GetValue(parameters, null);
-                            if (sw == null)
-                            {
-                                message = $"\t{LogFormats.NULL_TEXT}";
-                                if (error)
-                                    WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                else
-                                    WriteDebugPrefixNoAutoLog(logPrefix, message);
-                            }
-                            else
-                            {
-                                //
-                                // Call LoggingExtensions.Log Extension Method
-                                //
-                                sw.Log(debugLevel, logPrefix);
-                            }
-                        }
-                        break;
-                    case "System.Net.BufferAsyncResult":
-                        message = string.Format("({0}){1} ...", i < pars.Length ? name : "???", pi.Name);
-                        PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error);
-                        //if (ApplicationSettings.Logger?.LogLevel >= DebugPrintLevel[CLogger.Common_FunctionHeaderMethod])
-                        //{
-                        //    System.Net.BufferAsyncResult sw = (System.Net.BufferAsyncResult)pi.GetValue(parameters, null);
-                        //    if (sw.IsRunning)
-                        //    {
-                        //        message = string.Format("Elapsed: {0}", sw.Elapsed.ToString());
-                        //    }
-                        //    else
-                        //    {
-                        //        message = string.Format("Elapsed: Not Running");
-                        //    }
-                        //    if (error)
-                        //        WriteErrorPrefixNoAutoLog(logPrefix, message);
-                        //    else
-                        //        WriteDebugPrefixNoAutoLog(logPrefix, message);
-                        //}
-                        break;
-                    case "System.Net.HttpWebRequest":
-                        message = string.Format("({0}){1} ...", i < pars.Length ? name : "???", pi.Name);
-                        if (PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error) && ApplicationSettings.Logger?.LogLevel >= DebugPrintLevel[ConfigurationSetting.Log_ComplexParameterValues])
-                        {
-                            System.Net.HttpWebRequest httpRequest = (System.Net.HttpWebRequest)pi.GetValue(parameters, null);
-                            if (httpRequest == null)
-                            {
-                                message = $"\t{LogFormats.NULL_TEXT}";
-                                if (error)
-                                    WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                else
-                                    WriteDebugPrefixNoAutoLog(logPrefix, message);
-                            }
-                            else
-                            {
-                                //
-                                // Call LoggingExtensions.Log Extension Method
-                                //
-                                httpRequest.Log(debugLevel, logPrefix);
-                            }
-                        }
-                        break;
-                    case "System.Net.WebRequest":
-                        message = string.Format("({0}){1} ...", i < pars.Length ? name : "???", pi.Name);
-                        if (PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error) && ApplicationSettings.Logger?.LogLevel >= DebugPrintLevel[ConfigurationSetting.Log_ComplexParameterValues])
-                        {
-                            System.Net.WebRequest httpRequest = (System.Net.WebRequest)pi.GetValue(parameters, null);
-                            if (httpRequest == null)
-                            {
-                                message = $"\t{LogFormats.NULL_TEXT}";
-                                if (error)
-                                    WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                else
-                                    WriteDebugPrefixNoAutoLog(logPrefix, message);
-                            }
-                            else
-                            {
-                                //
-                                // Call LoggingExtensions.Log Extension Method
-                                //
-                                httpRequest.Log(debugLevel, logPrefix);
                             }
                         }
                         break;
@@ -1139,311 +278,59 @@ namespace AdvancedLogging.Utilities
                         if (isArray)
                         {
                             message = string.Format("({0}){1} ...", i < pars.Length ? name : "???", pi.Name);
-                            if (PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error))
+                            if (PrintItForProcessParametersNoAutoLog(logger, debugLevel, logPrefix, message, error))
                             {
-                                switch (fullName)
+                                if (ApplicationSettings.Logger?.LogLevel >= DebugPrintLevel[ConfigurationSetting.Log_DumpComplexParameterValues])
                                 {
-                                    case "System.String":
+                                    object oitem = pi.GetValue(parameters, null);
+                                    if (oitem == null)
+                                    {
+                                        message = $"\t{LogFormats.NULL_TEXT}";
+                                        if (error)
+                                            WriteErrorPrefixNoAutoLog(logger, logPrefix, message);
+                                        else
+                                            WriteDebugPrefixNoAutoLog(logger, logPrefix, message);
+                                    }
+                                    else
+                                    {
+                                        try
                                         {
-                                            string[] values = (string[])pi.GetValue(parameters, null);
-                                            if (values == null)
-                                            {
-                                                message = $"\t{LogFormats.NULL_TEXT}";
-                                                if (error)
-                                                    WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                else
-                                                    WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                            }
+                                            message = string.Format("Object Data  : {0}", ObjectDumper.Dump(oitem));
+                                            if (error)
+                                                WriteErrorPrefixNoAutoLog(logger, logPrefix, message);
                                             else
-                                            {
-                                                foreach (string value in values)
-                                                {
-                                                    message = string.Format("\t{0}", value);
-                                                    PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error);
-                                                }
-                                            }
+                                                WriteDebugPrefixNoAutoLog(logger, logPrefix, message);
                                         }
-                                        break;
-                                    case "System.Int16":
-                                    case "System.Int32":
-                                    case "System.Int64":
-                                    case "System.IntPtr":
+                                        catch (Exception ex)
                                         {
-                                            int[] values = (int[])pi.GetValue(parameters, null);
-                                            if (values == null)
-                                            {
-                                                message = $"\t{LogFormats.NULL_TEXT}";
-                                                if (error)
-                                                    WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                else
-                                                    WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                            }
-                                            else
-                                            {
-                                                foreach (int value in values)
-                                                {
-                                                    message = string.Format("\t{0}", value.ToString());
-                                                    PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error);
-                                                }
-                                            }
+                                            WriteErrorPrefixNoAutoLog(logger, logPrefix, string.Format("Error 'Dumping' object of type [{0}].", fullName), ex);
                                         }
-                                        break;
-                                    case "System.UInt16":
-                                    case "System.UInt32":
-                                    case "System.UInt64":
-                                    case "System.UIntPtr":
-                                        {
-                                            uint[] values = (uint[])pi.GetValue(parameters, null);
-                                            if (values == null)
-                                            {
-                                                message = $"\t{LogFormats.NULL_TEXT}";
-                                                if (error)
-                                                    WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                else
-                                                    WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                            }
-                                            else
-                                            {
-                                                foreach (uint value in values)
-                                                {
-                                                    message = string.Format("\t{0}", value.ToString());
-                                                    PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error);
-                                                }
-                                            }
-                                        }
-                                        break;
-                                    case "System.Double":
-                                    case "System.Single":
-                                        {
-                                            Double[] values = (Double[])pi.GetValue(parameters, null);
-                                            if (values == null)
-                                            {
-                                                message = $"\t{LogFormats.NULL_TEXT}";
-                                                if (error)
-                                                    WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                else
-                                                    WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                            }
-                                            else
-                                            {
-                                                foreach (Double value in values)
-                                                {
-                                                    message = string.Format("\t{0}", value.ToString());
-                                                    PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error);
-                                                }
-                                            }
-                                        }
-                                        break;
-                                    case "System.Boolean":
-                                        {
-                                            Boolean[] values = (Boolean[])pi.GetValue(parameters, null);
-                                            if (values == null)
-                                            {
-                                                message = $"\t{LogFormats.NULL_TEXT}";
-                                                if (error)
-                                                    WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                else
-                                                    WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                            }
-                                            else
-                                            {
-                                                foreach (Boolean value in values)
-                                                {
-                                                    message = string.Format("\t{0}", value.ToString());
-                                                    PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error);
-                                                }
-                                            }
-                                        }
-                                        break;
-                                    case "System.Byte":
-                                        {
-                                            Byte[] values = (Byte[])pi.GetValue(parameters, null);
-                                            if (values == null)
-                                            {
-                                                message = $"\t{LogFormats.NULL_TEXT}";
-                                                if (error)
-                                                    WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                else
-                                                    WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                            }
-                                            else
-                                            {
-                                                foreach (Byte value in values)
-                                                {
-                                                    message = string.Format("\t{0}", value.ToString());
-                                                    PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error);
-                                                }
-                                            }
-                                        }
-                                        break;
-                                    case "System.SByte":
-                                        {
-                                            SByte[] values = (SByte[])pi.GetValue(parameters, null);
-                                            if (values == null)
-                                            {
-                                                message = $"\t{LogFormats.NULL_TEXT}";
-                                                if (error)
-                                                    WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                else
-                                                    WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                            }
-                                            else
-                                            {
-                                                foreach (SByte value in values)
-                                                {
-                                                    message = string.Format("\t{0}", value.ToString());
-                                                    PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error);
-                                                }
-                                            }
-                                        }
-                                        break;
-                                    case "System.Char":
-                                        {
-                                            Char[] values = (Char[])pi.GetValue(parameters, null);
-                                            if (values == null)
-                                            {
-                                                message = $"\t{LogFormats.NULL_TEXT}";
-                                                if (error)
-                                                    WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                else
-                                                    WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                            }
-                                            else
-                                            {
-                                                foreach (Char value in values)
-                                                {
-                                                    message = string.Format("\t{0}", value.ToString());
-                                                    PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error);
-                                                }
-                                            }
-                                        }
-                                        break;
-                                    case "System.Decimal":
-                                        {
-                                            Decimal[] values = (Decimal[])pi.GetValue(parameters, null);
-                                            if (values == null)
-                                            {
-                                                message = $"\t{LogFormats.NULL_TEXT}";
-                                                if (error)
-                                                    WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                else
-                                                    WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                            }
-                                            else
-                                            {
-                                                foreach (Decimal value in values)
-                                                {
-                                                    message = string.Format("\t{0}", value.ToString());
-                                                    PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error);
-                                                }
-                                            }
-                                        }
-                                        break;
-                                    case "System.DateTime":
-                                        {
-                                            DateTime[] values = (DateTime[])pi.GetValue(parameters, null);
-                                            if (values == null)
-                                            {
-                                                message = $"\t{LogFormats.NULL_TEXT}";
-                                                if (error)
-                                                    WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                else
-                                                    WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                            }
-                                            else
-                                            {
-                                                foreach (DateTime value in values)
-                                                {
-                                                    message = string.Format("\t{0}", value.ToShortDateString() + " " + value.ToShortTimeString());
-                                                    PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error);
-                                                }
-                                            }
-                                        }
-                                        break;
-                                    default:
-                                        if (ApplicationSettings.Logger?.LogLevel >= DebugPrintLevel[ConfigurationSetting.Log_DumpComplexParameterValues])
-                                        {
-                                            object oitem = (DateTime[])pi.GetValue(parameters, null);
-                                            if (oitem == null)
-                                            {
-                                                message = $"\t{LogFormats.NULL_TEXT}";
-                                                if (error)
-                                                    WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                else
-                                                    WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                            }
-                                            else
-                                            {
-                                                try
-                                                {
-                                                    message = string.Format("Object Data  : {0}", ObjectDumper.Dump(oitem));
-                                                    if (error)
-                                                        WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                    else
-                                                        WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                }
-                                                catch (Exception ex)
-                                                {
-                                                    WriteErrorPrefixNoAutoLog(logPrefix, string.Format("Error 'Dumping' object of type [{0}].", fullName), ex);
-                                                }
-                                            }
-                                        }
-                                        break;
+                                    }
                                 }
                             }
                         }
                         else
                         {
                             message = string.Format("({0}){1}: {2}", i < pars.Length ? name : "???", pi.Name, pi.GetValue(parameters, null));
-                            if (PrintItForProcessParametersNoAutoLog(debugLevel, logPrefix, message, error))
+                            if (PrintItForProcessParametersNoAutoLog(logger, debugLevel, logPrefix, message, error))
                             {
                                 object oitem = pi.GetValue(parameters, null);
-                                if (oitem == null)
+                                if (oitem != null && !IsSimple(oitem.GetType()))
                                 {
-                                    message = $"\t{LogFormats.NULL_TEXT}";
-                                    if (error)
-                                        WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                    else
-                                        WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                }
-                                else
-                                {
-                                    if (!IsSimple(oitem.GetType()))
+                                    if (ApplicationSettings.Logger?.LogLevel >= DebugPrintLevel[ConfigurationSetting.Log_DumpComplexParameterValues])
                                     {
-                                        bool bLogged = false;
                                         try
                                         {
-                                            dynamic dt = oitem.ToType(oitem.GetType());
-
-                                            //
-                                            // Call LoggingExtensions.Log Extension Method
-                                            //
-#if !__IOS__
-                                            dt.Log(debugLevel, logPrefix, error);
-#endif											
+                                            ObjectDumper.Maxlevels = 10;
+                                            message = string.Format("Object Data  : {0}", ObjectDumper.Dump(oitem));
+                                            if (error)
+                                                WriteErrorPrefixNoAutoLog(logger, logPrefix, message);
+                                            else
+                                                WriteDebugPrefixNoAutoLog(logger, logPrefix, message);
                                         }
-                                        catch (NotImplementedException ex)
+                                        catch (Exception ex)
                                         {
-                                            bLogged = (ex.Message == "Custom ToPrint not found!");
-                                        }
-                                        if (!bLogged)
-                                        {
-                                            if (ApplicationSettings.Logger?.LogLevel >= DebugPrintLevel[ConfigurationSetting.Log_DumpComplexParameterValues])
-                                            {
-                                                try
-                                                {
-                                                    ObjectDumper.Maxlevels = 10;
-                                                    message = string.Format("Object Data  : {0}", ObjectDumper.Dump(oitem));
-                                                    if (error)
-                                                        WriteErrorPrefixNoAutoLog(logPrefix, message);
-                                                    else
-                                                        WriteDebugPrefixNoAutoLog(logPrefix, message);
-                                                }
-                                                catch (Exception ex)
-                                                {
-                                                    WriteErrorPrefixNoAutoLog(logPrefix, string.Format("Error 'Dumping' object of type [{0}].", fullName), ex);
-                                                }
-                                            }
+                                            WriteErrorPrefixNoAutoLog(logger, logPrefix, string.Format("Error 'Dumping' object of type [{0}].", fullName), ex);
                                         }
                                     }
                                 }
@@ -1459,7 +346,6 @@ namespace AdvancedLogging.Utilities
         {
             if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>))
             {
-                // nullable type, check if the nested type is simple.
                 return IsSimple(type.GetGenericArguments()[0]);
             }
             return type.IsPrimitive
@@ -1467,45 +353,45 @@ namespace AdvancedLogging.Utilities
               || type.Equals(typeof(string))
               || type.Equals(typeof(decimal));
         }
-        public static void ProcessStopWatch(ref Stopwatch sw, string functionName, SqlCommand cmd, string logPrefix = "", int iDebugLevel = 4)
+        public static void ProcessStopWatch(ICommonLogger logger, ILoggingContext loggingContext, ref Stopwatch sw, string functionName, SqlCommand cmd, string logPrefix = "", int iDebugLevel = 4)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { sw, functionName, cmd, logPrefix }))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { sw, functionName, cmd, logPrefix }))
             {
                 try
                 {
                     if (functionName.ToLower().Contains(".sqlhelper") || functionName.ToLower().Contains("httpwebextensions"))
                     {
-                        if (sw?.Elapsed.TotalMinutes >= Logger?.AutoLogSQLThreshold)
+                        if (sw?.Elapsed.TotalMinutes >= logger.AutoLogSQLThreshold)
                         {
-                            if (Logger != null && sw != null)
+                            if (logger != null && sw != null)
                             {
                                 vAutoLogFunction.WriteWarn("+" + new string('-', 79));
-                                vAutoLogFunction.WriteWarnFormat("+   Function: [{0}] - SQL Command Exceeded Time Threashold of [{1}] minutes - Actual [{2}] minutes.", functionName, Logger.AutoLogSQLThreshold, sw.Elapsed);
+                                vAutoLogFunction.WriteWarnFormat("+   Function: [{0}] - SQL Command Exceeded Time Threashold of [{1}] minutes - Actual [{2}] minutes.", functionName, logger.AutoLogSQLThreshold, sw.Elapsed);
                                 vAutoLogFunction.WriteWarn("+" + new string('-', 79));
                                 vAutoLogFunction.WriteWarn("+" + new string('-', 79));
                                 vAutoLogFunction.WriteWarn("+   Database Call Information");
                                 vAutoLogFunction.WriteWarn("+" + new string('-', 79));
-                                LogSQLData(false, functionName, cmd.CommandText, cmd.Parameters, true, logPrefix);
+                                LogSQLData(logger, false, functionName, cmd.CommandText, cmd.Parameters, true, logPrefix);
                                 vAutoLogFunction.WriteWarn("+" + new string('-', 79));
                             }
                         }
-                        else if (sw?.Elapsed.TotalSeconds >= LoggingUtils.MaxFunctionTimeThreshold)
+                        else if (sw?.Elapsed.TotalSeconds >= MaxFunctionTimeThreshold)
                         {
                             vAutoLogFunction.WriteWarn("+" + new string('-', 79));
-                            vAutoLogFunction.WriteWarnFormat("+   Function: [{0}] - {1} Exceeded Time Threashold of [{2}] seconds - Actual [{3}] seconds.", functionName, "Function", LoggingUtils.MaxFunctionTimeThreshold, sw.Elapsed);
+                            vAutoLogFunction.WriteWarnFormat("+   Function: [{0}] - {1} Exceeded Time Threashold of [{2}] seconds - Actual [{3}] seconds.", functionName, "Function", MaxFunctionTimeThreshold, sw.Elapsed);
                             vAutoLogFunction.WriteWarn("+" + new string('-', 79));
                         }
                     }
                     else
                     {
-                        if (sw?.Elapsed.TotalSeconds >= LoggingUtils.MaxFunctionTimeThreshold)
+                        if (sw?.Elapsed.TotalSeconds >= MaxFunctionTimeThreshold)
                         {
                             vAutoLogFunction.WriteWarn("+" + new string('-', 79));
-                            vAutoLogFunction.WriteWarnFormat("+   Function: [{0}] - {1} Exceeded Time Threashold of [{2}] seconds - Actual [{3}] seconds.", functionName, "Function", LoggingUtils.MaxFunctionTimeThreshold, sw.Elapsed);
+                            vAutoLogFunction.WriteWarnFormat("+   Function: [{0}] - {1} Exceeded Time Threashold of [{2}] seconds - Actual [{3}] seconds.", functionName, "Function", MaxFunctionTimeThreshold, sw.Elapsed);
                             vAutoLogFunction.WriteWarn("+" + new string('-', 79));
                         }
                     }
-                    if (Logger?.LogLevel >= iDebugLevel && sw != null)
+                    if (logger.LogLevel >= iDebugLevel && sw != null)
                     {
                         if (vAutoLogFunction.FunctionDeclarationLogged)
                             vAutoLogFunction.WriteDebugFormat("Time elapsed: {0}", sw.Elapsed);
@@ -1520,40 +406,40 @@ namespace AdvancedLogging.Utilities
                 }
             }
         }
-        public static void ProcessStopWatch(ref Stopwatch sw, AutoLogFunction vAutoLogFunction, SqlCommand cmd, int iDebugLevel = 4)
+        public static void ProcessStopWatch(ICommonLogger logger, ILoggingContext loggingContext, ref Stopwatch sw, Logging.AutoLogFunction vAutoLogFunction, SqlCommand cmd, int iDebugLevel = 4)
         {
             try
             {
                 if (vAutoLogFunction.FullName.ToLower().Contains(".sqlhelper") || vAutoLogFunction.FullName.ToLower().Contains("httpwebextensions"))
                 {
-                    if (sw?.Elapsed.TotalMinutes >= Logger?.AutoLogSQLThreshold)
+                    if (sw?.Elapsed.TotalMinutes >= logger.AutoLogSQLThreshold)
                     {
                         vAutoLogFunction.WriteWarn("+" + new string('-', 79));
-                        vAutoLogFunction.WriteWarnFormat("+   Function: [{0}] - SQL Command Exceeded Time Threashold of [{1}] minutes - Actual [{2}] minutes.", vAutoLogFunction.FullName, Logger.AutoLogSQLThreshold, sw.Elapsed);
+                        vAutoLogFunction.WriteWarnFormat("+   Function: [{0}] - SQL Command Exceeded Time Threashold of [{1}] minutes - Actual [{2}] minutes.", vAutoLogFunction.FullName, logger.AutoLogSQLThreshold, sw.Elapsed);
                         vAutoLogFunction.WriteWarn("+" + new string('-', 79));
                         vAutoLogFunction.WriteWarn("+" + new string('-', 79));
                         vAutoLogFunction.WriteWarn("+   Database Call Information");
                         vAutoLogFunction.WriteWarn("+" + new string('-', 79));
-                        LogSQLData(false, vAutoLogFunction.FullName, cmd.CommandText, cmd.Parameters, true, vAutoLogFunction.LogPrefix);
+                        LogSQLData(logger, false, vAutoLogFunction.FullName, cmd.CommandText, cmd.Parameters, true, vAutoLogFunction.LogPrefix);
                         vAutoLogFunction.WriteWarn("+" + new string('-', 79));
                     }
-                    else if (sw?.Elapsed.TotalSeconds >= LoggingUtils.MaxFunctionTimeThreshold)
+                    else if (sw?.Elapsed.TotalSeconds >= MaxFunctionTimeThreshold)
                     {
                         vAutoLogFunction.WriteWarn("+" + new string('-', 79));
-                        vAutoLogFunction.WriteWarnFormat("+   Function: [{0}] - {1} Exceeded Time Threashold of [{2}] seconds - Actual [{3}] seconds.", vAutoLogFunction.FullName, "Function", LoggingUtils.MaxFunctionTimeThreshold, sw.Elapsed);
+                        vAutoLogFunction.WriteWarnFormat("+   Function: [{0}] - {1} Exceeded Time Threashold of [{2}] seconds - Actual [{3}] seconds.", vAutoLogFunction.FullName, "Function", MaxFunctionTimeThreshold, sw.Elapsed);
                         vAutoLogFunction.WriteWarn("+" + new string('-', 79));
                     }
                 }
                 else
                 {
-                    if (sw?.Elapsed.TotalSeconds >= LoggingUtils.MaxFunctionTimeThreshold)
+                    if (sw?.Elapsed.TotalSeconds >= MaxFunctionTimeThreshold)
                     {
                         vAutoLogFunction.WriteWarn("+" + new string('-', 79));
-                        vAutoLogFunction.WriteWarnFormat("+   Function: [{0}] - {1} Exceeded Time Threashold of [{2}] seconds - Actual [{3}] seconds.", vAutoLogFunction.FullName, "Function", LoggingUtils.MaxFunctionTimeThreshold, sw.Elapsed);
+                        vAutoLogFunction.WriteWarnFormat("+   Function: [{0}] - {1} Exceeded Time Threashold of [{2}] seconds - Actual [{3}] seconds.", vAutoLogFunction.FullName, "Function", MaxFunctionTimeThreshold, sw.Elapsed);
                         vAutoLogFunction.WriteWarn("+" + new string('-', 79));
                     }
                 }
-                if (Logger?.LogLevel >= iDebugLevel && sw != null)
+                if (logger.LogLevel >= iDebugLevel && sw != null)
                 {
                     if (vAutoLogFunction.FunctionDeclarationLogged)
                         vAutoLogFunction.WriteDebugFormat("Time elapsed: {0}", sw.Elapsed);
@@ -1567,20 +453,20 @@ namespace AdvancedLogging.Utilities
                 throw;
             }
         }
-        public static void ProcessStopWatch(ref Stopwatch sw, string functionName, string message = "", string logPrefix = "", int iDebugLevel = 4)
+        public static void ProcessStopWatch(ICommonLogger logger, ILoggingContext loggingContext, ref Stopwatch sw, string functionName, string message = "", string logPrefix = "", int iDebugLevel = 4)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { sw, functionName, message, logPrefix }))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { sw, functionName, message, logPrefix }))
             {
                 try
                 {
                     if (functionName.ToLower().Contains(".sqlhelper") || functionName.ToLower().Contains("httpwebextensions"))
                     {
-                        if (sw?.Elapsed.TotalMinutes >= Logger?.AutoLogSQLThreshold)
+                        if (sw?.Elapsed.TotalMinutes >= logger.AutoLogSQLThreshold)
                         {
-                            if (Logger != null && sw != null)
+                            if (logger != null && sw != null)
                             {
                                 vAutoLogFunction.WriteWarn("+" + new string('-', 79));
-                                vAutoLogFunction.WriteWarnFormat("+   Function: [{0}] - {1} Exceeded Time Threashold of [{2}] minutes - Actual [{3}] minutes.", functionName, (message.Length > 0 ? "HTTP Query" : ""), Logger.AutoLogSQLThreshold, sw.Elapsed);
+                                vAutoLogFunction.WriteWarnFormat("+   Function: [{0}] - {1} Exceeded Time Threashold of [{2}] minutes - Actual [{3}] minutes.", functionName, (message.Length > 0 ? "HTTP Query" : ""), logger.AutoLogSQLThreshold, sw.Elapsed);
                                 vAutoLogFunction.WriteWarn("+" + new string('-', 79));
                                 if (message.Length > 0)
                                 {
@@ -1590,23 +476,23 @@ namespace AdvancedLogging.Utilities
                                 vAutoLogFunction.WriteWarn("+" + new string('-', 79));
                             }
                         }
-                        else if (sw?.Elapsed.TotalSeconds >= LoggingUtils.MaxFunctionTimeThreshold)
+                        else if (sw?.Elapsed.TotalSeconds >= MaxFunctionTimeThreshold)
                         {
                             vAutoLogFunction.WriteWarn("+" + new string('-', 79));
-                            vAutoLogFunction.WriteWarnFormat("+   Function: [{0}] - {1} Exceeded Time Threashold of [{2}] seconds - Actual [{3}] seconds.", functionName, "Function", LoggingUtils.MaxFunctionTimeThreshold, sw.Elapsed);
+                            vAutoLogFunction.WriteWarnFormat("+   Function: [{0}] - {1} Exceeded Time Threashold of [{2}] seconds - Actual [{3}] seconds.", functionName, "Function", MaxFunctionTimeThreshold, sw.Elapsed);
                             vAutoLogFunction.WriteWarn("+" + new string('-', 79));
                         }
                     }
                     else
                     {
-                        if (sw?.Elapsed.TotalSeconds >= LoggingUtils.MaxFunctionTimeThreshold)
+                        if (sw?.Elapsed.TotalSeconds >= MaxFunctionTimeThreshold)
                         {
                             vAutoLogFunction.WriteWarn("+" + new string('-', 79));
-                            vAutoLogFunction.WriteWarnFormat("+   Function: [{0}] - {1} Exceeded Time Threashold of [{2}] seconds - Actual [{3}] seconds.", functionName, "Function", LoggingUtils.MaxFunctionTimeThreshold, sw.Elapsed);
+                            vAutoLogFunction.WriteWarnFormat("+   Function: [{0}] - {1} Exceeded Time Threashold of [{2}] seconds - Actual [{3}] seconds.", functionName, "Function", MaxFunctionTimeThreshold, sw.Elapsed);
                             vAutoLogFunction.WriteWarn("+" + new string('-', 79));
                         }
                     }
-                    if (Logger?.LogLevel >= iDebugLevel && sw != null)
+                    if (logger.LogLevel >= iDebugLevel && sw != null)
                     {
                         if (vAutoLogFunction.FunctionDeclarationLogged)
                             vAutoLogFunction.WriteDebugFormat("Time elapsed: {0}", sw.Elapsed);
@@ -1621,18 +507,18 @@ namespace AdvancedLogging.Utilities
                 }
             }
         }
-        public static void ProcessStopWatch(ref Stopwatch sw, AutoLogFunction vAutoLogFunction, string message = "", int iDebugLevel = 4)
+        public static void ProcessStopWatch(ICommonLogger logger, ILoggingContext loggingContext, ref Stopwatch sw, Logging.AutoLogFunction vAutoLogFunction, string message = "", int iDebugLevel = 4)
         {
             try
             {
                 if (vAutoLogFunction.FullName.ToLower().Contains(".sqlhelper") || vAutoLogFunction.FullName.ToLower().Contains("httpwebextensions"))
                 {
-                    if (sw?.Elapsed.TotalMinutes >= Logger?.AutoLogSQLThreshold)
+                    if (sw?.Elapsed.TotalMinutes >= logger.AutoLogSQLThreshold)
                     {
-                        if (Logger != null && sw != null)
+                        if (logger != null && sw != null)
                         {
                             vAutoLogFunction.WriteWarn("+" + new string('-', 79));
-                            vAutoLogFunction.WriteWarnFormat("+   {0} Exceeded Time Threashold of [{1}] minutes - Actual [{2}] minutes.", (message.Length > 0 ? "HTTP Query" : ""), Logger.AutoLogSQLThreshold, sw.Elapsed);
+                            vAutoLogFunction.WriteWarnFormat("+   {0} Exceeded Time Threashold of [{1}] minutes - Actual [{2}] minutes.", (message.Length > 0 ? "HTTP Query" : ""), logger.AutoLogSQLThreshold, sw.Elapsed);
                             vAutoLogFunction.WriteWarn("+" + new string('-', 79));
                             if (message.Length > 0)
                             {
@@ -1642,23 +528,23 @@ namespace AdvancedLogging.Utilities
                             vAutoLogFunction.WriteWarn("+" + new string('-', 79));
                         }
                     }
-                    else if (sw?.Elapsed.TotalSeconds >= LoggingUtils.MaxFunctionTimeThreshold)
+                    else if (sw?.Elapsed.TotalSeconds >= MaxFunctionTimeThreshold)
                     {
                         vAutoLogFunction.WriteWarn("+" + new string('-', 79));
-                        vAutoLogFunction.WriteWarnFormat("+   Function: [{0}] - {1} Exceeded Time Threashold of [{2}] seconds - Actual [{3}] seconds.", vAutoLogFunction.FullName, "Function", LoggingUtils.MaxFunctionTimeThreshold, sw.Elapsed);
+                        vAutoLogFunction.WriteWarnFormat("+   Function: [{0}] - {1} Exceeded Time Threashold of [{2}] seconds - Actual [{3}] seconds.", vAutoLogFunction.FullName, "Function", MaxFunctionTimeThreshold, sw.Elapsed);
                         vAutoLogFunction.WriteWarn("+" + new string('-', 79));
                     }
                 }
                 else
                 {
-                    if (sw?.Elapsed.TotalSeconds >= LoggingUtils.MaxFunctionTimeThreshold)
+                    if (sw?.Elapsed.TotalSeconds >= MaxFunctionTimeThreshold)
                     {
                         vAutoLogFunction.WriteWarn("+" + new string('-', 79));
-                        vAutoLogFunction.WriteWarnFormat("+   Function: [{0}] - {1} Exceeded Time Threashold of [{2}] seconds - Actual [{3}] seconds.", vAutoLogFunction.FullName, "Function", LoggingUtils.MaxFunctionTimeThreshold, sw.Elapsed);
+                        vAutoLogFunction.WriteWarnFormat("+   Function: [{0}] - {1} Exceeded Time Threashold of [{2}] seconds - Actual [{3}] seconds.", vAutoLogFunction.FullName, "Function", MaxFunctionTimeThreshold, sw.Elapsed);
                         vAutoLogFunction.WriteWarn("+" + new string('-', 79));
                     }
                 }
-                if (Logger?.LogLevel >= iDebugLevel && sw != null)
+                if (logger.LogLevel >= iDebugLevel && sw != null)
                 {
                     vAutoLogFunction.WriteDebugFormat("Time elapsed: {0}", sw.Elapsed);
                 }
@@ -1669,17 +555,11 @@ namespace AdvancedLogging.Utilities
                 throw;
             }
         }
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="CurrentMethod"></param>
-        /// <param name="ParentFunction"></param>
-        /// <param name="cmd"></param>
-        /// <param name="ex"></param>
-        public static void LogDBError(MethodBase CurrentMethod, MethodBase ParentFunction, SqlCommand cmd, Exception ex, string LogPrefix = "")
+
+        public static void LogDBError(ICommonLogger logger, ILoggingContext loggingContext, MethodBase CurrentMethod, MethodBase ParentFunction, SqlCommand cmd, Exception ex, string LogPrefix = "")
         {
-            string strParent = CommonLogger.FunctionFullName(ParentFunction);
-            using (var vAutoLogFunction = new AutoLogFunction(new { CurrentMethod, ParentFunction, cmd, ex, LogPrefix }, bSuppressFunctionDeclaration: true))
+            string strParent = Loggers.CommonLogger.FunctionFullName(ParentFunction);
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { CurrentMethod, ParentFunction, cmd, ex, LogPrefix }, bSuppressFunctionDeclaration: true))
             {
                 try
                 {
@@ -1687,11 +567,11 @@ namespace AdvancedLogging.Utilities
                     vAutoLogFunction.WriteError("+" + new string('-', 79));
                     vAutoLogFunction.WriteError("+   Database Error");
                     vAutoLogFunction.WriteError("+" + new string('-', 79));
-                    vAutoLogFunction.WriteErrorFormat("{0}: [{1}] - {2}", CommonLogger.FunctionFullName(CurrentMethod), cmd.CommandText, ex.ToString());
+                    vAutoLogFunction.WriteErrorFormat("{0}: [{1}] - {2}", Loggers.CommonLogger.FunctionFullName(CurrentMethod), cmd.CommandText, ex.ToString());
                     vAutoLogFunction.WriteError("+" + new string('-', 79));
                     vAutoLogFunction.WriteError("+   Database Call Information");
                     vAutoLogFunction.WriteError("+" + new string('-', 79));
-                    LoggingUtils.LogSQLData(strParent, cmd.CommandText, cmd.Parameters, true, LogPrefix);
+                    LogSQLData(logger, strParent, cmd.CommandText, cmd.Parameters, true, LogPrefix);
                     vAutoLogFunction.WriteError("+" + new string('-', 79));
                 }
                 catch (Exception exOuter)
@@ -1702,28 +582,21 @@ namespace AdvancedLogging.Utilities
             }
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="CurrentMethod"></param>
-        /// <param name="ParentFunction"></param>
-        /// <param name="cmdText"></param>
-        /// <param name="ex"></param>
-        public static void LogDBError(MethodBase CurrentMethod, MethodBase ParentFunction, string cmdText, Exception ex, string LogPrefix = "")
+        public static void LogDBError(ICommonLogger logger, ILoggingContext loggingContext, MethodBase CurrentMethod, MethodBase ParentFunction, string cmdText, Exception ex, string LogPrefix = "")
         {
-            string strParent = CommonLogger.FunctionFullName(ParentFunction);
-            using (var vAutoLogFunction = new AutoLogFunction(new { CurrentMethod, ParentFunction, cmdText, ex, LogPrefix }, bSuppressFunctionDeclaration: true))
+            string strParent = Loggers.CommonLogger.FunctionFullName(ParentFunction);
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { CurrentMethod, ParentFunction, cmdText, ex, LogPrefix }, bSuppressFunctionDeclaration: true))
             {
                 try
                 {
                     vAutoLogFunction.WriteError("+" + new string('-', 79));
                     vAutoLogFunction.WriteError("+   Database Error");
                     vAutoLogFunction.WriteError("+" + new string('-', 79));
-                    vAutoLogFunction.WriteErrorFormat("{0}: [{1}] - {2}", CommonLogger.FunctionFullName(CurrentMethod), cmdText, ex.ToString());
+                    vAutoLogFunction.WriteErrorFormat("{0}: [{1}] - {2}", Loggers.CommonLogger.FunctionFullName(CurrentMethod), cmdText, ex.ToString());
                     vAutoLogFunction.WriteError("+" + new string('-', 79));
                     vAutoLogFunction.WriteError("+   Database Call Information");
                     vAutoLogFunction.WriteError("+" + new string('-', 79));
-                    LoggingUtils.LogSQLData(strParent, cmdText, bForceLogWrite: true, logPrefix: LogPrefix);
+                    LogSQLData(logger, strParent, cmdText, bForceLogWrite: true, logPrefix: LogPrefix);
                     vAutoLogFunction.WriteError("+" + new string('-', 79));
                 }
                 catch (Exception exOuter)
@@ -1734,49 +607,49 @@ namespace AdvancedLogging.Utilities
             }
         }
 
-        public static void LogSQLData(string functionName, string strCommand, SqlParameter[] sqlParameters, bool bForceLogWrite = false, string logPrefix = "")
+        public static void LogSQLData(ICommonLogger logger, string functionName, string strCommand, SqlParameter[] sqlParameters, bool bForceLogWrite = false, string logPrefix = "")
         {
-            LogSQLData(true, functionName, strCommand, sqlParameters, bForceLogWrite, logPrefix);
+            LogSQLData(logger, true, functionName, strCommand, sqlParameters, bForceLogWrite, logPrefix);
         }
 
-        public static void LogSQLData(bool bAutoDetect, string functionName, string strCommand, SqlParameter[] sqlParameters, bool bForceLogWrite = false, string logPrefix = "")
+        public static void LogSQLData(ICommonLogger logger, bool bAutoDetect, string functionName, string strCommand, SqlParameter[] sqlParameters, bool bForceLogWrite = false, string logPrefix = "")
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { bAutoDetect, functionName, strCommand, sqlParameters, bForceLogWrite, logPrefix }))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, null, new { bAutoDetect, functionName, strCommand, sqlParameters, bForceLogWrite, logPrefix }))
             {
                 try
                 {
                     string detectedCriteria = "";
                     string detectedFunction;
 
-                    if (Logger == null)
+                    if (logger == null)
                         return;
                     if (!bForceLogWrite)
                     {
-                        if (!Logger.ToLog(4, out detectedCriteria, out detectedFunction, out int detectedLevel)) // Log the Comamnd if LogLevel is >= to 4
+                        if (!logger.ToLog(4, out detectedCriteria, out detectedFunction, out int detectedLevel)) // Log the Comamnd if LogLevel is >= to 4
                             return;
                     }
                     if (vAutoLogFunction.FunctionDeclarationLogged)
                     {
-                        if (Logger.LoggingDebug())
+                        if (logger.LoggingDebug())
                             vAutoLogFunction.WriteDebugFormat("Command: [{0}]", strCommand);
                         else
                             vAutoLogFunction.WriteWarnFormat("Command: [{0}]", strCommand);
                     }
                     else
                     {
-                        if (Logger.LoggingDebug())
+                        if (logger.LoggingDebug())
                             vAutoLogFunction.WriteDebugFormat("{0}{1}: Command: [{2}]", functionName, detectedCriteria.Length > 0 ? LogFormats.DETAILED_LOGGING : "", strCommand);
                         else
                             vAutoLogFunction.WriteWarnFormat("{0}{1}: Command: [{2}]", functionName, detectedCriteria.Length > 0 ? LogFormats.DETAILED_LOGGING : "", strCommand);
                     }
                     if (!bForceLogWrite)
                     {
-                        if (!Logger.ToLog(DebugPrintLevel[ConfigurationSetting.Log_SqlParameters], out detectedCriteria, out detectedFunction, out int detectedLevel)) // Log the Parameters if LogLevel is >= to 10
+                        if (!logger.ToLog(DebugPrintLevel[ConfigurationSetting.Log_SqlParameters], out detectedCriteria, out detectedFunction, out int detectedLevel)) // Log the Parameters if LogLevel is >= to 10
                             return;
                     }
                     if (sqlParameters == null || sqlParameters.Length == 0)
                     {
-                        if (Logger.IsDebugEnabled)
+                        if (logger.IsDebugEnabled)
                             vAutoLogFunction.WriteDebug("No Parameters!");
                         else
                             vAutoLogFunction.WriteWarn("No Parameters!");
@@ -1787,14 +660,14 @@ namespace AdvancedLogging.Utilities
                         {
                             if (item.Direction == ParameterDirection.Input || item.Direction == ParameterDirection.InputOutput)
                             {
-                                if (Logger.IsDebugEnabled)
+                                if (logger.IsDebugEnabled)
                                     vAutoLogFunction.WriteDebugFormat("({0}){1}: {2}", SqlDbTypeToString(item), item.ParameterName, (item.Value == System.DBNull.Value || item.Value == null) ? LogFormats.NULL_TEXT : item.Value.ToString());
                                 else
                                     vAutoLogFunction.WriteLogFormat("({0}){1}: {2}", SqlDbTypeToString(item), item.ParameterName, (item.Value == System.DBNull.Value || item.Value == null) ? LogFormats.NULL_TEXT : item.Value.ToString());
                             }
                             else
                             {
-                                if (Logger.IsDebugEnabled)
+                                if (logger.IsDebugEnabled)
                                     vAutoLogFunction.WriteDebugFormat("({0}){1}: {3}({2})", item.ParameterName, SqlDbTypeToString(item), item.Direction.ToString(), (item.Value == System.DBNull.Value || item.Value == null) ? LogFormats.NULL_TEXT : item.Value.ToString());
                                 else
                                     vAutoLogFunction.WriteLogFormat("({0}){1}: {3}({2})", item.ParameterName, SqlDbTypeToString(item), item.Direction.ToString(), (item.Value == System.DBNull.Value || item.Value == null) ? LogFormats.NULL_TEXT : item.Value.ToString());
@@ -1810,57 +683,49 @@ namespace AdvancedLogging.Utilities
             }
         }
 
-#if __IOS__
-        public static void LogSQLData(string functionName, string strCommand, SqlParameterCollection? sqlParameters = null, bool bForceLogWrite = false, string logPrefix = "")
-#else
-        public static void LogSQLData(string functionName, string strCommand, SqlParameterCollection sqlParameters = null, bool bForceLogWrite = false, string logPrefix = "")
-#endif
+        public static void LogSQLData(ICommonLogger logger, string functionName, string strCommand, SqlParameterCollection sqlParameters = null, bool bForceLogWrite = false, string logPrefix = "")
         {
-            LogSQLData(true, functionName, strCommand, sqlParameters, bForceLogWrite, logPrefix);
+            LogSQLData(logger, true, functionName, strCommand, sqlParameters, bForceLogWrite, logPrefix);
         }
 
-#if __IOS__
-        public static void LogSQLData(bool bAutoDetect, string functionName, string strCommand, SqlParameterCollection? sqlParameters = null, bool bForceLogWrite = false, string logPrefix = "")
-#else
-        public static void LogSQLData(bool bAutoDetect, string functionName, string strCommand, SqlParameterCollection sqlParameters = null, bool bForceLogWrite = false, string logPrefix = "")
-#endif
+        public static void LogSQLData(ICommonLogger logger, bool bAutoDetect, string functionName, string strCommand, SqlParameterCollection sqlParameters = null, bool bForceLogWrite = false, string logPrefix = "")
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { bAutoDetect, functionName, strCommand, sqlParameters, bForceLogWrite, logPrefix }))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, null, new { bAutoDetect, functionName, strCommand, sqlParameters, bForceLogWrite, logPrefix }))
             {
                 try
                 {
                     string detectedCriteria = "";
                     string detectedFunction = "";
 
-                    if (Logger == null)
+                    if (logger == null)
                         return;
                     if (!bForceLogWrite)
                     {
-                        if (bAutoDetect && !Logger.ToLog(4, out detectedCriteria, out detectedFunction, out int detectedLevel)) // Log the Comamnd if LogLevel is >= to 4
+                        if (bAutoDetect && !logger.ToLog(4, out detectedCriteria, out detectedFunction, out int detectedLevel)) // Log the Comamnd if LogLevel is >= to 4
                             return;
                     }
                     if (vAutoLogFunction.FunctionDeclarationLogged)
                     {
-                        if (Logger.LoggingDebug())
+                        if (logger.LoggingDebug())
                             vAutoLogFunction.WriteDebugFormat("Command: [{0}]", strCommand);
                         else
                             vAutoLogFunction.WriteWarnFormat("Command: [{0}]", strCommand);
                     }
                     else
                     {
-                        if (Logger.LoggingDebug())
+                        if (logger.LoggingDebug())
                             vAutoLogFunction.WriteDebugFormat("{0}{1}: Command: [{2}]", functionName, detectedCriteria.Length > 0 ? LogFormats.DETAILED_LOGGING : "", strCommand);
                         else
                             vAutoLogFunction.WriteWarnFormat("{0}{1}: Command: [{2}]", functionName, detectedCriteria.Length > 0 ? LogFormats.DETAILED_LOGGING : "", strCommand);
                     }
                     if (!bForceLogWrite)
                     {
-                        if (bAutoDetect && !Logger.ToLog(DebugPrintLevel[ConfigurationSetting.Log_SqlParameters], out detectedCriteria, out detectedFunction, out int detectedLevel)) // Log the Parameters if LogLevel is >= to 10
+                        if (bAutoDetect && !logger.ToLog(DebugPrintLevel[ConfigurationSetting.Log_SqlParameters], out detectedCriteria, out detectedFunction, out int detectedLevel)) // Log the Parameters if LogLevel is >= to 10
                             return;
                     }
                     if (sqlParameters == null || sqlParameters.Count == 0)
                     {
-                        if (Logger.IsDebugEnabled)
+                        if (logger.IsDebugEnabled)
                             vAutoLogFunction.WriteDebugFormat("No Parameters!");
                         else
                             vAutoLogFunction.WriteWarnFormat("No Parameters!");
@@ -1871,14 +736,14 @@ namespace AdvancedLogging.Utilities
                         {
                             if (item.Direction == ParameterDirection.Input || item.Direction == ParameterDirection.InputOutput)
                             {
-                                if (Logger.IsDebugEnabled)
+                                if (logger.IsDebugEnabled)
                                     vAutoLogFunction.WriteDebugFormat("({0}){1}: {2}", SqlDbTypeToString(item), item.ParameterName, SqlDbTypeToString(item), (item.Value == System.DBNull.Value || item.Value == null) ? LogFormats.NULL_TEXT : item.Value.ToString());
                                 else
                                     vAutoLogFunction.WriteLogFormat("({0}){1}: {2}", SqlDbTypeToString(item), item.ParameterName, (item.Value == System.DBNull.Value || item.Value == null) ? LogFormats.NULL_TEXT : item.Value.ToString());
                             }
                             else
                             {
-                                if (Logger.IsDebugEnabled)
+                                if (logger.IsDebugEnabled)
                                     vAutoLogFunction.WriteDebugFormat("({0}){1}: {3}({2})", item.ParameterName, SqlDbTypeToString(item), item.Direction.ToString(), (item.Value == System.DBNull.Value || item.Value == null) ? LogFormats.NULL_TEXT : item.Value.ToString());
                                 else
                                     vAutoLogFunction.WriteLogFormat("({0}){1}: {3}({2})", item.ParameterName, SqlDbTypeToString(item), item.Direction.ToString(), (item.Value == System.DBNull.Value || item.Value == null) ? LogFormats.NULL_TEXT : item.Value.ToString());
@@ -1894,25 +759,21 @@ namespace AdvancedLogging.Utilities
             }
         }
 
-#if __IOS__
-        public static void LogSQLData(SqlParameterCollection? sqlParameters = null, string strAppendLogPrefix = "", int iTabs = -1, bool bSuppressFunctionDeclaration = false)
-#else
-        public static void LogSQLData(SqlParameterCollection sqlParameters = null, string strAppendLogPrefix = "", int iTabs = -1, bool bSuppressFunctionDeclaration = false)
-#endif
+        public static void LogSQLData(ICommonLogger logger, ILoggingContext loggingContext, SqlParameterCollection sqlParameters = null, string strAppendLogPrefix = "", int iTabs = -1, bool bSuppressFunctionDeclaration = false)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { sqlParameters, strAppendLogPrefix }, null, iTabs, bSuppressFunctionDeclaration))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { sqlParameters, strAppendLogPrefix }, null, iTabs, bSuppressFunctionDeclaration))
             {
                 try
                 {
                     if (strAppendLogPrefix.Length > 0)
                         vAutoLogFunction.LogPrefix = strAppendLogPrefix;
-                    if (Logger == null)
+                    if (logger == null)
                         return;
-                    if (!Logger.ToLog(DebugPrintLevel[ConfigurationSetting.Log_SqlParameters], out string detectedCriteria, out string detectedFunction, out int detectedLevel)) // Log the Parameters if LogLevel is >= to 10
+                    if (!logger.ToLog(DebugPrintLevel[ConfigurationSetting.Log_SqlParameters], out string detectedCriteria, out string detectedFunction, out int detectedLevel)) // Log the Parameters if LogLevel is >= to 10
                         return;
                     if (sqlParameters == null)
                     {
-                        if (Logger.IsDebugEnabled)
+                        if (logger.IsDebugEnabled)
                             vAutoLogFunction.WriteDebugFormat("No Parameters:");
                         else
                             vAutoLogFunction.WriteWarnFormat("No Parameters:");
@@ -1923,14 +784,14 @@ namespace AdvancedLogging.Utilities
                         {
                             if (item.Direction == ParameterDirection.Input || item.Direction == ParameterDirection.InputOutput)
                             {
-                                if (Logger.IsDebugEnabled)
+                                if (logger.IsDebugEnabled)
                                     vAutoLogFunction.WriteDebugFormat("({0}){1}: {2}", SqlDbTypeToString(item), item.ParameterName, (item.Value == System.DBNull.Value || item.Value == null) ? LogFormats.NULL_TEXT : item.Value.ToString());
                                 else
                                     vAutoLogFunction.WriteLogFormat("({0}){1}: {2}", SqlDbTypeToString(item), item.ParameterName, (item.Value == System.DBNull.Value || item.Value == null) ? LogFormats.NULL_TEXT : item.Value.ToString());
                             }
                             else
                             {
-                                if (Logger.IsDebugEnabled)
+                                if (logger.IsDebugEnabled)
                                     vAutoLogFunction.WriteDebugFormat("({0}){1}: {3}({2})", item.ParameterName, SqlDbTypeToString(item), item.Direction.ToString(), (item.Value == System.DBNull.Value || item.Value == null) ? LogFormats.NULL_TEXT : item.Value.ToString());
                                 else
                                     vAutoLogFunction.WriteLogFormat("({0}){1}: {3}({2})", item.ParameterName, SqlDbTypeToString(item), item.Direction.ToString(), (item.Value == System.DBNull.Value || item.Value == null) ? LogFormats.NULL_TEXT : item.Value.ToString());
@@ -1946,7 +807,7 @@ namespace AdvancedLogging.Utilities
             }
         }
 
-        public static void LogSQLOutData(SqlParameterCollection sqlParameters, AutoLogFunction vAutoLogFunction)
+        public static void LogSQLOutData(ICommonLogger logger, SqlParameterCollection sqlParameters, Logging.AutoLogFunction vAutoLogFunction)
         {
             if (sqlParameters != null)
             {
@@ -1956,7 +817,7 @@ namespace AdvancedLogging.Utilities
                         item.Direction == ParameterDirection.InputOutput ||
                         item.Direction == ParameterDirection.ReturnValue)
                     {
-                        if (Logger != null && Logger.IsDebugEnabled)
+                        if (logger != null && logger.IsDebugEnabled)
                             vAutoLogFunction.WriteDebugFormat("\t({0}){1}: {3}({2})", item.ParameterName, SqlDbTypeToString(item), item.Direction.ToString(), (item.Value == System.DBNull.Value || item.Value == null) ? LogFormats.NULL_TEXT : item.Value.ToString());
                         else
                             vAutoLogFunction.WriteLogFormat("\t({0}){1}: {3}({2})", item.ParameterName, SqlDbTypeToString(item), item.Direction.ToString(), (item.Value == System.DBNull.Value || item.Value == null) ? LogFormats.NULL_TEXT : item.Value.ToString());
@@ -1965,751 +826,626 @@ namespace AdvancedLogging.Utilities
             }
         }
 
-#if __IOS__
-        public static void WriteLog(string message, Exception? ex = null)
-#else
-        public static void WriteLog(string message, Exception ex = null)
-#endif
+        public static void WriteLog(ICommonLogger logger, ILoggingContext loggingContext, string message, Exception ex = null)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { message, ex }))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { message, ex }))
             {
-                WriteLogNoAutoLog(message, ex);
+                WriteLogNoAutoLog(logger, message, ex);
             }
         }
-#if __IOS__
-        public static void WriteLogNoAutoLog(string message, Exception? ex = null)
-#else
-        public static void WriteLogNoAutoLog(string message, Exception ex = null)
-#endif
+
+        public static void WriteLogNoAutoLog(ICommonLogger logger, string message, Exception ex = null)
         {
             try
             {
                 if (ex == null)
                 {
-                    if (ShouldLogToDebugWindow())
+                    if (ShouldLogToDebugWindow(logger))
                         Debug.WriteLine(message);
-                    if (ShouldLogToConsole())
+                    if (ShouldLogToConsole(logger))
                         Console.WriteLine(message);
                 }
                 else
                 {
-                    if (ShouldLogToDebugWindow())
+                    if (ShouldLogToDebugWindow(logger))
                         Debug.WriteLine(message + "; Error: " + ex);
-                    if (ShouldLogToConsole())
+                    if (ShouldLogToConsole(logger))
                         Console.WriteLine(message + "; Error: " + ex);
                 }
-#if __IOS__
-                if (ex == null)
-                    Log.Information(message);
-                else
-                    Log.Information(ex, message);
-#endif
-                Logger?.Info(message, ex);
+                logger?.Info(message, ex);
             }
             catch (Exception exOuter)
             {
-                LogFunctionNoAutoLog(System.Reflection.MethodBase.GetCurrentMethod(), new { message, ex }, true);
-#if __IOS__
-                Log.Debug(exOuter, string.Format("{0}", System.Reflection.MethodBase.GetCurrentMethod().Name));
-#endif
-                Logger?.Debug(string.Format("{0}", System.Reflection.MethodBase.GetCurrentMethod().Name), exOuter);
-                throw;
-            }
-        }
-        //public static void WriteLogPrefix(string logPrefix, string message, Exception ex = null)
-        //{
-        //    using (var vAutoLogFunction = new AutoLogFunction(new { message, ex }))
-        //    {
-        //        try
-        //        {
-        //            if (ex == null)
-        //            {
-        //                Debug.WriteLine(logPrefix + message);
-        //                if (ConsoleAttached && ApplicationSettings.WriteConsole)
-        //                    Console.WriteLine(logPrefix + message);
-        //            }
-        //            else
-        //            {
-        //                Debug.WriteLine(logPrefix + message + "; Error: " + ex);
-        //                if (ConsoleAttached && ApplicationSettings.WriteConsole)
-        //                    Console.WriteLine(logPrefix + message + "; Error: " + ex);
-        //            }
-        //            Logger?.InfoPrefix(logPrefix, message, ex);
-        //        }
-        //        catch (Exception exOuter)
-        //        {
-        //            LogFunction(System.Reflection.MethodBase.GetCurrentMethod(), new { message, ex }, System.Reflection.MethodBase.GetCurrentMethod(), true, exOuter);
-        //            Logger?.Debug(string.Format("{0}", System.Reflection.MethodBase.GetCurrentMethod().Name), exOuter);
-        //            throw;
-        //        }
-        //    }
-        //}
-#if __IOS__
-        public static void WriteLogPrefix(string logPrefix, string message, Exception? ex = null)
-#else
-        public static void WriteLogPrefix(string logPrefix, string message, Exception ex = null)
-#endif
-        {
-            using (var vAutoLogFunction = new AutoLogFunction(new { logPrefix, message, ex }))
-            {
-                WriteLogPrefixNoAutoLog(logPrefix, message, ex);
-            }
-        }
-#if __IOS__
-        public static void WriteLogPrefixNoAutoLog(string logPrefix, string message, Exception? ex = null)
-#else
-        public static void WriteLogPrefixNoAutoLog(string logPrefix, string message, Exception ex = null)
-#endif
-        {
-            try
-            {
-                if (ex == null)
-                {
-                    if (ShouldLogToDebugWindow())
-                        Debug.WriteLine(logPrefix + message);
-                    if (ShouldLogToConsole())
-                        Console.WriteLine(logPrefix + message);
-                }
-                else
-                {
-                    if (ShouldLogToDebugWindow())
-                        Debug.WriteLine(logPrefix + message + "; Error: " + ex);
-                    if (ShouldLogToConsole())
-                        Console.WriteLine(logPrefix + message + "; Error: " + ex);
-                }
-#if __IOS__
-                if (ex == null)
-                    Log.Information(logPrefix + message);
-                else
-                    Log.Information(ex, logPrefix + message);
-#endif
-                Logger?.Info(logPrefix + message, ex);
-            }
-            catch (Exception exOuter)
-            {
-                LogFunctionNoAutoLog(System.Reflection.MethodBase.GetCurrentMethod(), new { logPrefix, message, ex }, true, exception: exOuter);
-#if __IOS__
-                Log.Debug(exOuter, string.Format("{0}{1}", logPrefix, System.Reflection.MethodBase.GetCurrentMethod().Name));
-#endif
-                Logger?.Debug(string.Format("{0}{1}", logPrefix, System.Reflection.MethodBase.GetCurrentMethod().Name), exOuter);
-                throw;
-            }
-        }
-        public static void WriteLogFormat(string format, params object[] args)
-        {
-            using (var vAutoLogFunction = new AutoLogFunction(new { format, args }))
-            {
-                WriteLogFormatNoAutoLog(format, args);
-            }
-        }
-        public static void WriteLogFormatNoAutoLog(string format, params object[] args)
-        {
-            try
-            {
-                string message = string.Format(format, args);
-                if (ShouldLogToDebugWindow())
-                    Debug.WriteLine(message);
-                if (ShouldLogToConsole())
-                    Console.WriteLine(message);
-#if __IOS__
-                Log.Information(message);
-#endif
-                Logger?.Info(message);
-            }
-            catch (Exception exOuter)
-            {
-                LogFunctionNoAutoLog(System.Reflection.MethodBase.GetCurrentMethod(), new { format, args }, true, exception: exOuter);
-                throw;
-            }
-        }
-#if __IOS__
-        public static void WriteDebug(string message, Exception? ex = null)
-#else
-        public static void WriteDebug(string message, Exception ex = null)
-#endif
-        {
-            using (var vAutoLogFunction = new AutoLogFunction(new { message, ex }))
-            {
-                WriteDebugNoAutoLog(message, ex);
-            }
-        }
-#if __IOS__
-        public static void WriteDebugNoAutoLog(string message, Exception? ex = null)
-#else
-        public static void WriteDebugNoAutoLog(string message, Exception ex = null)
-#endif
-        {
-            try
-            {
-                if (ex == null)
-                {
-                    if (ShouldLogToDebugWindow())
-                        Debug.WriteLine(message);
-                    if (ShouldLogToConsole())
-                        Console.WriteLine(message);
-                }
-                else
-                {
-                    if (ShouldLogToDebugWindow())
-                        Debug.WriteLine(message + "; Error: " + ex);
-                    if (ShouldLogToConsole())
-                        Console.WriteLine(message + "; Error: " + ex);
-                }
-                Logger?.Debug(message, ex);
-            }
-            catch (Exception exOuter)
-            {
-                LogFunctionNoAutoLog(System.Reflection.MethodBase.GetCurrentMethod(), new { message, ex }, true, exception: exOuter);
+                LogFunctionNoAutoLog(logger, null, System.Reflection.MethodBase.GetCurrentMethod(), new { message, ex }, true, exception: exOuter);
+                logger?.Debug(string.Format("{0}", System.Reflection.MethodBase.GetCurrentMethod().Name), exOuter);
                 throw;
             }
         }
 
-#if __IOS__
-        public static void WriteDebugPrefix(string logPrefix, string message, Exception? ex = null)
-#else
-        public static void WriteDebugPrefix(string logPrefix, string message, Exception ex = null)
-#endif
+        public static void WriteLogPrefix(ICommonLogger logger, ILoggingContext loggingContext, string logPrefix, string message, Exception ex = null)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { logPrefix, message, ex }))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { logPrefix, message, ex }))
             {
-                WriteDebugPrefixNoAutoLog(logPrefix, message, ex);
+                WriteLogPrefixNoAutoLog(logger, logPrefix, message, ex);
             }
         }
-#if __IOS__
-        public static void WriteDebugPrefixNoAutoLog(string logPrefix, string message, Exception? ex = null)
-#else
-        public static void WriteDebugPrefixNoAutoLog(string logPrefix, string message, Exception ex = null)
-#endif
+
+        public static void WriteLogPrefixNoAutoLog(ICommonLogger logger, string logPrefix, string message, Exception ex = null)
         {
             try
             {
                 if (ex == null)
                 {
-                    if (ShouldLogToDebugWindow())
+                    if (ShouldLogToDebugWindow(logger))
                         Debug.WriteLine(logPrefix + message);
-                    if (ShouldLogToConsole())
+                    if (ShouldLogToConsole(logger))
                         Console.WriteLine(logPrefix + message);
                 }
                 else
                 {
-                    if (ShouldLogToDebugWindow())
+                    if (ShouldLogToDebugWindow(logger))
                         Debug.WriteLine(logPrefix + message + "; Error: " + ex);
-                    if (ShouldLogToConsole())
+                    if (ShouldLogToConsole(logger))
                         Console.WriteLine(logPrefix + message + "; Error: " + ex);
                 }
-                Logger?.Debug(logPrefix + message, ex);
+                logger?.Info(logPrefix + message, ex);
             }
             catch (Exception exOuter)
             {
-                LogFunctionNoAutoLog(System.Reflection.MethodBase.GetCurrentMethod(), new { message, ex }, true, exception: exOuter);
+                LogFunctionNoAutoLog(logger, null, System.Reflection.MethodBase.GetCurrentMethod(), new { logPrefix, message, ex }, true, exception: exOuter);
+                logger?.Debug(string.Format("{0}{1}", logPrefix, System.Reflection.MethodBase.GetCurrentMethod().Name), exOuter);
                 throw;
             }
         }
-#if __IOS__
-        public static bool WriteDebug(int DebugLevel, string message, Exception? ex = null)
-#else
-        public static bool WriteDebug(int DebugLevel, string message, Exception ex = null)
-#endif
+        public static void WriteLogFormat(ICommonLogger logger, ILoggingContext loggingContext, string format, params object[] args)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { DebugLevel, message, ex }))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { format, args }))
             {
-                return WriteDebugNoAutoLog(DebugLevel, message, ex);
+                WriteLogFormatNoAutoLog(logger, format, args);
             }
         }
-#if __IOS__
-        public static bool WriteDebugNoAutoLog(int DebugLevel, string message, Exception? ex = null)
-#else
-        public static bool WriteDebugNoAutoLog(int DebugLevel, string message, Exception ex = null)
-#endif
+        public static void WriteLogFormatNoAutoLog(ICommonLogger logger, string format, params object[] args)
+        {
+            try
+            {
+                string message = string.Format(format, args);
+                if (ShouldLogToDebugWindow(logger))
+                    Debug.WriteLine(message);
+                if (ShouldLogToConsole(logger))
+                    Console.WriteLine(message);
+                logger?.Info(message);
+            }
+            catch (Exception exOuter)
+            {
+                LogFunctionNoAutoLog(logger, null, System.Reflection.MethodBase.GetCurrentMethod(), new { format, args }, true, exception: exOuter);
+                throw;
+            }
+        }
+
+        public static void WriteDebug(ICommonLogger logger, ILoggingContext loggingContext, string message, Exception ex = null)
+        {
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { message, ex }))
+            {
+                WriteDebugNoAutoLog(logger, message, ex);
+            }
+        }
+
+        public static void WriteDebugNoAutoLog(ICommonLogger logger, string message, Exception ex = null)
         {
             try
             {
                 if (ex == null)
                 {
-                    if (ShouldLogToDebugWindow())
+                    if (ShouldLogToDebugWindow(logger))
                         Debug.WriteLine(message);
-                    if (ShouldLogToConsole())
+                    if (ShouldLogToConsole(logger))
                         Console.WriteLine(message);
                 }
                 else
                 {
-                    if (ShouldLogToDebugWindow())
+                    if (ShouldLogToDebugWindow(logger))
                         Debug.WriteLine(message + "; Error: " + ex);
-                    if (ShouldLogToConsole())
+                    if (ShouldLogToConsole(logger))
                         Console.WriteLine(message + "; Error: " + ex);
                 }
-                if (Logger == null)
+                logger?.Debug(message, ex);
+            }
+            catch (Exception exOuter)
+            {
+                LogFunctionNoAutoLog(logger, null, System.Reflection.MethodBase.GetCurrentMethod(), new { message, ex }, true, exception: exOuter);
+                throw;
+            }
+        }
+
+        public static void WriteDebugPrefix(ICommonLogger logger, ILoggingContext loggingContext, string logPrefix, string message, Exception ex = null)
+        {
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { logPrefix, message, ex }))
+            {
+                WriteDebugPrefixNoAutoLog(logger, logPrefix, message, ex);
+            }
+        }
+
+        public static void WriteDebugPrefixNoAutoLog(ICommonLogger logger, string logPrefix, string message, Exception ex = null)
+        {
+            try
+            {
+                if (ex == null)
+                {
+                    if (ShouldLogToDebugWindow(logger))
+                        Debug.WriteLine(logPrefix + message);
+                    if (ShouldLogToConsole(logger))
+                        Console.WriteLine(logPrefix + message);
+                }
+                else
+                {
+                    if (ShouldLogToDebugWindow(logger))
+                        Debug.WriteLine(logPrefix + message + "; Error: " + ex);
+                    if (ShouldLogToConsole(logger))
+                        Console.WriteLine(logPrefix + message + "; Error: " + ex);
+                }
+                logger?.Debug(logPrefix + message, ex);
+            }
+            catch (Exception exOuter)
+            {
+                LogFunctionNoAutoLog(logger, null, System.Reflection.MethodBase.GetCurrentMethod(), new { message, ex }, true, exception: exOuter);
+                throw;
+            }
+        }
+
+        public static bool WriteDebug(ICommonLogger logger, ILoggingContext loggingContext, int DebugLevel, string message, Exception ex = null)
+        {
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { DebugLevel, message, ex }))
+            {
+                return WriteDebugNoAutoLog(logger, DebugLevel, message, ex);
+            }
+        }
+
+        public static bool WriteDebugNoAutoLog(ICommonLogger logger, int DebugLevel, string message, Exception ex = null)
+        {
+            try
+            {
+                if (ex == null)
+                {
+                    if (ShouldLogToDebugWindow(logger))
+                        Debug.WriteLine(message);
+                    if (ShouldLogToConsole(logger))
+                        Console.WriteLine(message);
+                }
+                else
+                {
+                    if (ShouldLogToDebugWindow(logger))
+                        Debug.WriteLine(message + "; Error: " + ex);
+                    if (ShouldLogToConsole(logger))
+                        Console.WriteLine(message + "; Error: " + ex);
+                }
+                if (logger == null)
                     return false;
                 else
                 {
-                    return Logger.Debug(DebugLevel, message, ex);
+                    return logger.Debug(DebugLevel, message, ex);
                 }
             }
             catch (Exception exOuter)
             {
-                LogFunctionNoAutoLog(System.Reflection.MethodBase.GetCurrentMethod(), new { DebugLevel, message, ex }, true, exception: exOuter);
+                LogFunctionNoAutoLog(logger, null, System.Reflection.MethodBase.GetCurrentMethod(), new { DebugLevel, message, ex }, true, exception: exOuter);
                 throw;
             }
         }
-#if __IOS__
-        public static bool WriteDebugPrefix(int DebugLevel, string logPrefix, string message, Exception? ex = null)
-#else
-        public static bool WriteDebugPrefix(int DebugLevel, string logPrefix, string message, Exception ex = null)
-#endif
+
+        public static bool WriteDebugPrefix(ICommonLogger logger, ILoggingContext loggingContext, int DebugLevel, string logPrefix, string message, Exception ex = null)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { DebugLevel, logPrefix, message, ex }))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { DebugLevel, logPrefix, message, ex }))
             {
-                return WriteDebugPrefixNoAutoLog(DebugLevel, logPrefix, message, ex);
+                return WriteDebugPrefixNoAutoLog(logger, DebugLevel, logPrefix, message, ex);
             }
         }
-#if __IOS__
-        public static bool WriteDebugPrefixNoAutoLog(int DebugLevel, string logPrefix, string message, Exception? ex = null)
-#else
-        public static bool WriteDebugPrefixNoAutoLog(int DebugLevel, string logPrefix, string message, Exception ex = null)
-#endif
+
+        public static bool WriteDebugPrefixNoAutoLog(ICommonLogger logger, int DebugLevel, string logPrefix, string message, Exception ex = null)
         {
             try
             {
                 if (ex == null)
                 {
-                    if (ShouldLogToDebugWindow())
+                    if (ShouldLogToDebugWindow(logger))
                         Debug.WriteLine(logPrefix + message);
-                    if (ShouldLogToConsole())
+                    if (ShouldLogToConsole(logger))
                         Console.WriteLine(logPrefix + message);
                 }
                 else
                 {
-                    if (ShouldLogToDebugWindow())
+                    if (ShouldLogToDebugWindow(logger))
                         Debug.WriteLine(logPrefix + message + "; Error: " + ex);
-                    if (ShouldLogToConsole())
+                    if (ShouldLogToConsole(logger))
                         Console.WriteLine(logPrefix + message + "; Error: " + ex);
                 }
-#pragma warning disable IDE0075 // Simplify conditional expression
-                return Logger == null ? false : Logger.DebugPrefix(DebugLevel, logPrefix, message, ex);
-#pragma warning restore IDE0075 // Simplify conditional expression
+                return logger != null && logger.DebugPrefix(DebugLevel, logPrefix, message, ex);
             }
             catch (Exception exOuter)
             {
-                LogFunctionNoAutoLog(System.Reflection.MethodBase.GetCurrentMethod(), new { DebugLevel, message, ex }, true, exception: exOuter);
+                LogFunctionNoAutoLog(logger, null, System.Reflection.MethodBase.GetCurrentMethod(), new { DebugLevel, message, ex }, true, exception: exOuter);
                 throw;
             }
         }
-        public static void WriteDebugFormatPrefix(string logPrefix, string format, params object[] args)
+        public static void WriteDebugFormatPrefix(ICommonLogger logger, ILoggingContext loggingContext, string logPrefix, string format, params object[] args)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { logPrefix, format, args }))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { logPrefix, format, args }))
             {
-                WriteDebugFormatPrefixNoAutoLog(logPrefix, format, args);
+                WriteDebugFormatPrefixNoAutoLog(logger, logPrefix, format, args);
             }
         }
-        public static void WriteDebugFormatPrefixNoAutoLog(string logPrefix, string format, params object[] args)
+        public static void WriteDebugFormatPrefixNoAutoLog(ICommonLogger logger, string logPrefix, string format, params object[] args)
         {
             try
             {
                 string message = string.Format(format, args);
-                if (ShouldLogToDebugWindow())
+                if (ShouldLogToDebugWindow(logger))
                     Debug.WriteLine(message);
-                if (ShouldLogToConsole())
+                if (ShouldLogToConsole(logger))
                     Console.WriteLine(message);
-                Logger?.DebugPrefix(logPrefix, message, null);
+                logger?.DebugPrefix(logPrefix, message, null);
             }
             catch (Exception exOuter)
             {
-                LogFunctionNoAutoLog(System.Reflection.MethodBase.GetCurrentMethod(), new { logPrefix, format, args }, true, logPrefix);
-                Logger?.Debug(logPrefix + string.Format("{0}", System.Reflection.MethodBase.GetCurrentMethod().Name), exOuter);
+                LogFunctionNoAutoLog(logger, null, System.Reflection.MethodBase.GetCurrentMethod(), new { logPrefix, format, args }, true, logPrefix);
+                logger?.Debug(logPrefix + string.Format("{0}", System.Reflection.MethodBase.GetCurrentMethod().Name), exOuter);
                 throw;
             }
         }
-        public static void WriteDebugFormatPrefix(string logPrefix, string functionName, string format, params object[] args)
+        public static void WriteDebugFormatPrefix(ICommonLogger logger, ILoggingContext loggingContext, string logPrefix, string functionName, string format, params object[] args)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { logPrefix, functionName, format, args }))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { logPrefix, functionName, format, args }))
             {
-                WriteDebugFormatPrefixNoAutoLog(logPrefix, functionName, format, args);
+                WriteDebugFormatPrefixNoAutoLog(logger, logPrefix, functionName, format, args);
             }
         }
-        public static void WriteDebugFormatPrefixNoAutoLog(string logPrefix, string functionName, string format, params object[] args)
+        public static void WriteDebugFormatPrefixNoAutoLog(ICommonLogger logger, string logPrefix, string functionName, string format, params object[] args)
         {
             try
             {
                 string message = string.Format(format, args);
-                if (ShouldLogToDebugWindow())
+                if (ShouldLogToDebugWindow(logger))
                     Debug.WriteLine(message);
-                if (ShouldLogToConsole())
+                if (ShouldLogToConsole(logger))
                     Console.WriteLine(message);
-                Logger?.DebugPrefix(logPrefix, functionName, message, null);
+                logger?.DebugPrefix(logPrefix, functionName, message, null);
             }
             catch (Exception exOuter)
             {
-                LogFunctionNoAutoLog(System.Reflection.MethodBase.GetCurrentMethod(), new { logPrefix, functionName, format, args }, true, logPrefix);
-                Logger?.Debug(logPrefix + string.Format("{0}", System.Reflection.MethodBase.GetCurrentMethod().Name), exOuter);
+                LogFunctionNoAutoLog(logger, null, System.Reflection.MethodBase.GetCurrentMethod(), new { logPrefix, functionName, format, args }, true, logPrefix);
+                logger?.Debug(logPrefix + string.Format("{0}", System.Reflection.MethodBase.GetCurrentMethod().Name), exOuter);
                 throw;
             }
         }
-        public static bool WriteDebugFormatPrefix(int DebugLevel, string logPrefix, string format, params object[] args)
+        public static bool WriteDebugFormatPrefix(ICommonLogger logger, ILoggingContext loggingContext, int DebugLevel, string logPrefix, string format, params object[] args)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { DebugLevel, logPrefix, format, args }))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { DebugLevel, logPrefix, format, args }))
             {
-                return WriteDebugFormatPrefixNoAutoLog(DebugLevel, logPrefix, format, args);
+                return WriteDebugFormatPrefixNoAutoLog(logger, DebugLevel, logPrefix, format, args);
             }
         }
-        public static bool WriteDebugFormatPrefixNoAutoLog(int DebugLevel, string logPrefix, string format, params object[] args)
+        public static bool WriteDebugFormatPrefixNoAutoLog(ICommonLogger logger, int DebugLevel, string logPrefix, string format, params object[] args)
         {
             try
             {
                 string message = string.Format(format, args);
-                if (ShouldLogToDebugWindow())
+                if (ShouldLogToDebugWindow(logger))
                     Debug.WriteLine(message);
-                if (ShouldLogToConsole())
+                if (ShouldLogToConsole(logger))
                     Console.WriteLine(message);
-                return Logger != null && Logger.DebugPrefix(DebugLevel, logPrefix, message, null);
+                return logger != null && logger.DebugPrefix(DebugLevel, logPrefix, message, null);
             }
             catch (Exception exOuter)
             {
-                LogFunctionNoAutoLog(System.Reflection.MethodBase.GetCurrentMethod(), new { DebugLevel, logPrefix, format, args }, true, logPrefix);
-                Logger?.Debug(logPrefix + string.Format("{0}", System.Reflection.MethodBase.GetCurrentMethod().Name), exOuter);
+                LogFunctionNoAutoLog(logger, null, System.Reflection.MethodBase.GetCurrentMethod(), new { DebugLevel, logPrefix, format, args }, true, logPrefix);
+                logger?.Debug(logPrefix + string.Format("{0}", System.Reflection.MethodBase.GetCurrentMethod().Name), exOuter);
                 throw;
             }
         }
-        public static bool WriteDebugFormatPrefix(int DebugLevel, string logPrefix, string functionName, string format, params object[] args)
+        public static bool WriteDebugFormatPrefix(ICommonLogger logger, ILoggingContext loggingContext, int DebugLevel, string logPrefix, string functionName, string format, params object[] args)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { DebugLevel, logPrefix, functionName, format, args }))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { DebugLevel, logPrefix, functionName, format, args }))
             {
-                return WriteDebugFormatPrefixNoAutoLog(DebugLevel, logPrefix, functionName, format, args);
+                return WriteDebugFormatPrefixNoAutoLog(logger, DebugLevel, logPrefix, functionName, format, args);
             }
         }
-        public static bool WriteDebugFormatPrefixNoAutoLog(int DebugLevel, string logPrefix, string functionName, string format, params object[] args)
+        public static bool WriteDebugFormatPrefixNoAutoLog(ICommonLogger logger, int DebugLevel, string logPrefix, string functionName, string format, params object[] args)
         {
             try
             {
                 string message = string.Format(format, args);
-                if (ShouldLogToDebugWindow())
+                if (ShouldLogToDebugWindow(logger))
                     Debug.WriteLine(message);
-                if (ShouldLogToConsole())
+                if (ShouldLogToConsole(logger))
                     Console.WriteLine(message);
-                return Logger != null && Logger.DebugPrefix(DebugLevel, logPrefix, functionName, message, null);
+                return logger != null && logger.DebugPrefix(DebugLevel, logPrefix, functionName, message, null);
             }
             catch (Exception exOuter)
             {
-                LogFunctionNoAutoLog(System.Reflection.MethodBase.GetCurrentMethod(), new { DebugLevel, logPrefix, functionName, format, args }, true, logPrefix);
-                Logger?.Error(logPrefix + string.Format("{0}", System.Reflection.MethodBase.GetCurrentMethod().Name), exOuter);
+                LogFunctionNoAutoLog(logger, null, System.Reflection.MethodBase.GetCurrentMethod(), new { DebugLevel, logPrefix, functionName, format, args }, true, logPrefix);
+                logger?.Error(logPrefix + string.Format("{0}", System.Reflection.MethodBase.GetCurrentMethod().Name), exOuter);
                 throw;
             }
         }
-#if __IOS__
-        public static void WriteError(string message, Exception? ex = null)
-#else
-        public static void WriteError(string message, Exception ex = null)
-#endif
+
+        public static void WriteError(ICommonLogger logger, string message, Exception ex = null)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { message, ex }))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, null, new { message, ex }))
             {
-                WriteErrorNoAutoLog(message, ex);
+                WriteErrorNoAutoLog(logger, message, ex);
             }
         }
-#if __IOS__
-        public static void WriteErrorNoAutoLog(string message, Exception? ex = null)
-#else
-        public static void WriteErrorNoAutoLog(string message, Exception ex = null)
-#endif
+
+        public static void WriteErrorNoAutoLog(ICommonLogger logger, string message, Exception ex = null)
         {
             try
             {
                 if (ex == null)
                 {
-                    if (ShouldLogToDebugWindow())
+                    if (ShouldLogToDebugWindow(logger))
                         Debug.WriteLine(message);
-                    if (ShouldLogToConsole())
+                    if (ShouldLogToConsole(logger))
                         Console.WriteLine(message);
                 }
                 else
                 {
-                    if (ShouldLogToDebugWindow())
+                    if (ShouldLogToDebugWindow(logger))
                         Debug.WriteLine(message + "; Error: " + ex);
-                    if (ShouldLogToConsole())
+                    if (ShouldLogToConsole(logger))
                         Console.WriteLine(message + "; Error: " + ex);
                 }
-                Logger?.Error(message, ex);
+                logger?.Error(message, ex);
             }
             catch (Exception exOuter)
             {
-                LogFunctionNoAutoLog(System.Reflection.MethodBase.GetCurrentMethod(), new { message, ex }, true, exception: exOuter);
+                LogFunctionNoAutoLog(logger, null, System.Reflection.MethodBase.GetCurrentMethod(), new { message, ex }, true, exception: exOuter);
                 throw;
             }
         }
-#if __IOS__
-        public static void WriteErrorPrefix(string logPrefix, string message, Exception? ex = null)
-#else
-        public static void WriteErrorPrefix(string logPrefix, string message, Exception ex = null)
-#endif
+
+        public static void WriteErrorPrefix(ICommonLogger logger, ILoggingContext loggingContext, string logPrefix, string message, Exception ex = null)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { logPrefix, message, ex }))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { logPrefix, message, ex }))
             {
-                WriteErrorPrefixNoAutoLog(logPrefix, message, ex);
+                WriteErrorPrefixNoAutoLog(logger, logPrefix, message, ex);
             }
         }
-#if __IOS__
-        public static void WriteErrorPrefixNoAutoLog(string logPrefix, string message, Exception? ex = null)
-#else
-        public static void WriteErrorPrefixNoAutoLog(string logPrefix, string message, Exception ex = null)
-#endif
+
+        public static void WriteErrorPrefixNoAutoLog(ICommonLogger logger, string logPrefix, string message, Exception ex = null)
         {
             try
             {
                 if (ex == null)
                 {
-                    if (ShouldLogToDebugWindow())
+                    if (ShouldLogToDebugWindow(logger))
                         Debug.WriteLine(logPrefix + message);
-                    if (ShouldLogToConsole())
+                    if (ShouldLogToConsole(logger))
                         Console.WriteLine(logPrefix + message);
                 }
                 else
                 {
-                    if (ShouldLogToDebugWindow())
+                    if (ShouldLogToDebugWindow(logger))
                         Debug.WriteLine(logPrefix + message + "; Error: " + ex);
-                    if (ShouldLogToConsole())
+                    if (ShouldLogToConsole(logger))
                         Console.WriteLine(logPrefix + message + "; Error: " + ex);
                 }
-                Logger?.Error(logPrefix + message, ex);
+                logger?.Error(logPrefix + message, ex);
             }
             catch (Exception exOuter)
             {
-                LogFunctionNoAutoLog(System.Reflection.MethodBase.GetCurrentMethod(), new { message, ex }, true, exception: exOuter);
+                LogFunctionNoAutoLog(logger, null, System.Reflection.MethodBase.GetCurrentMethod(), new { message, ex }, true, exception: exOuter);
                 throw;
             }
         }
-        public static void WriteErrorFormat(string format, params object[] args)
+        public static void WriteErrorFormat(ICommonLogger logger, ILoggingContext loggingContext, string format, params object[] args)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { format, args }))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { format, args }))
             {
-                WriteErrorFormatNoAutoLog(format, args);
+                WriteErrorFormatNoAutoLog(logger, format, args);
             }
         }
-        public static void WriteErrorFormatNoAutoLog(string format, params object[] args)
+        public static void WriteErrorFormatNoAutoLog(ICommonLogger logger, string format, params object[] args)
         {
             try
             {
                 string message = string.Format(format, args);
-                if (ShouldLogToDebugWindow())
+                if (ShouldLogToDebugWindow(logger))
                     Debug.WriteLine(message);
-                if (ShouldLogToConsole())
+                if (ShouldLogToConsole(logger))
                     Console.WriteLine(message);
-                Logger?.ErrorFormat(message);
+                logger?.ErrorFormat(message);
             }
             catch (Exception exOuter)
             {
-                LogFunctionNoAutoLog(System.Reflection.MethodBase.GetCurrentMethod(), new { format, args }, true, exception: exOuter);
+                LogFunctionNoAutoLog(logger, null, System.Reflection.MethodBase.GetCurrentMethod(), new { format, args }, true, exception: exOuter);
                 throw;
             }
         }
-#if __IOS__
-        public static void WriteFatal(string message, Exception? ex = null)
-#else
-        public static void WriteFatal(string message, Exception ex = null)
-#endif
+
+        public static void WriteFatal(ICommonLogger logger, ILoggingContext loggingContext, string message, Exception ex = null)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { message, ex }))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { message, ex }))
             {
-                WriteFatalNoAutoLog(message, ex);
+                WriteFatalNoAutoLog(logger, message, ex);
             }
         }
-#if __IOS__
-        public static void WriteFatalNoAutoLog(string message, Exception? ex = null)
-#else
-        public static void WriteFatalNoAutoLog(string message, Exception ex = null)
-#endif
+
+        public static void WriteFatalNoAutoLog(ICommonLogger logger, string message, Exception ex = null)
         {
             try
             {
                 if (ex == null)
                 {
-                    if (ShouldLogToDebugWindow())
+                    if (ShouldLogToDebugWindow(logger))
                         Debug.WriteLine(message);
-                    if (ShouldLogToConsole())
+                    if (ShouldLogToConsole(logger))
                         Console.WriteLine(message);
                 }
                 else
                 {
-                    if (ShouldLogToDebugWindow())
+                    if (ShouldLogToDebugWindow(logger))
                         Debug.WriteLine(message + "; Error: " + ex);
-                    if (ShouldLogToConsole())
+                    if (ShouldLogToConsole(logger))
                         Console.WriteLine(message + "; Error: " + ex);
                 }
-                Logger?.Fatal(message, ex);
+                logger?.Fatal(message, ex);
             }
             catch (Exception exOuter)
             {
-                LogFunctionNoAutoLog(System.Reflection.MethodBase.GetCurrentMethod(), new { message, ex }, true, exception: exOuter);
+                LogFunctionNoAutoLog(logger, null, System.Reflection.MethodBase.GetCurrentMethod(), new { message, ex }, true, exception: exOuter);
                 throw;
             }
         }
-#if __IOS__
-        public static void WriteFatalPrefix(string logPrefix, string message, Exception? ex = null)
-#else
-        public static void WriteFatalPrefix(string logPrefix, string message, Exception ex = null)
-#endif
+
+        public static void WriteFatalPrefix(ICommonLogger logger, ILoggingContext loggingContext, string logPrefix, string message, Exception ex = null)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { logPrefix, message, ex }))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { logPrefix, message, ex }))
             {
-                WriteFatalPrefixNoAutoLog(logPrefix, message, ex);
+                WriteFatalPrefixNoAutoLog(logger, logPrefix, message, ex);
             }
         }
-#if __IOS__
-        public static void WriteFatalPrefixNoAutoLog(string logPrefix, string message, Exception? ex = null)
-#else
-        public static void WriteFatalPrefixNoAutoLog(string logPrefix, string message, Exception ex = null)
-#endif
+
+        public static void WriteFatalPrefixNoAutoLog(ICommonLogger logger, string logPrefix, string message, Exception ex = null)
         {
             try
             {
                 if (ex == null)
                 {
-                    if (ShouldLogToDebugWindow())
+                    if (ShouldLogToDebugWindow(logger))
                         Debug.WriteLine(logPrefix + message);
-                    if (ShouldLogToConsole())
+                    if (ShouldLogToConsole(logger))
                         Console.WriteLine(logPrefix + message);
                 }
                 else
                 {
-                    if (ShouldLogToDebugWindow())
+                    if (ShouldLogToDebugWindow(logger))
                         Debug.WriteLine(logPrefix + message + "; Error: " + ex);
-                    if (ShouldLogToConsole())
+                    if (ShouldLogToConsole(logger))
                         Console.WriteLine(logPrefix + message + "; Error: " + ex);
                 }
-                Logger?.Error(logPrefix + message, ex);
+                logger?.Error(logPrefix + message, ex);
             }
             catch (Exception exOuter)
             {
-                LogFunctionNoAutoLog(System.Reflection.MethodBase.GetCurrentMethod(), new { message, ex }, true, exception: exOuter);
+                LogFunctionNoAutoLog(logger, null, System.Reflection.MethodBase.GetCurrentMethod(), new { message, ex }, true, exception: exOuter);
                 throw;
             }
         }
-        public static void WriteFatalFormat(string format, params object[] args)
+        public static void WriteFatalFormat(ICommonLogger logger, ILoggingContext loggingContext, string format, params object[] args)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { format, args }))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { format, args }))
             {
-                WriteFatalFormatNoAutoLog(format, args);
+                WriteFatalFormatNoAutoLog(logger, format, args);
             }
         }
-        public static void WriteFatalFormatNoAutoLog(string format, params object[] args)
+        public static void WriteFatalFormatNoAutoLog(ICommonLogger logger, string format, params object[] args)
         {
             try
             {
                 string message = string.Format(format, args);
-                if (ShouldLogToDebugWindow())
+                if (ShouldLogToDebugWindow(logger))
                     Debug.WriteLine(message);
-                if (ShouldLogToConsole())
+                if (ShouldLogToConsole(logger))
                     Console.WriteLine(message);
-                Logger?.ErrorFormat(message);
+                logger?.ErrorFormat(message);
             }
             catch (Exception exOuter)
             {
-                LogFunctionNoAutoLog(System.Reflection.MethodBase.GetCurrentMethod(), new { format, args }, true, exception: exOuter);
+                LogFunctionNoAutoLog(logger, null, System.Reflection.MethodBase.GetCurrentMethod(), new { format, args }, true, exception: exOuter);
                 throw;
             }
         }
-#if __IOS__
-        public static void WriteWarn(string message, Exception? ex = null)
-#else
-        public static void WriteWarn(string message, Exception ex = null)
-#endif
+
+        public static void WriteWarn(ICommonLogger logger, ILoggingContext loggingContext, string message, Exception ex = null)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { message, ex }))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { message, ex }))
             {
-                WriteWarnAutoLog(message, ex);
+                WriteWarnNoAutoLog(logger, message, ex);
             }
         }
-#if __IOS__
-        public static void WriteWarnAutoLog(string message, Exception? ex = null)
-#else
-        public static void WriteWarnAutoLog(string message, Exception ex = null)
-#endif
+
+        public static void WriteWarnNoAutoLog(ICommonLogger logger, string message, Exception ex = null)
         {
             try
             {
                 if (ex == null)
                 {
-                    if (ShouldLogToDebugWindow())
+                    if (ShouldLogToDebugWindow(logger))
                         Debug.WriteLine(message);
-                    if (ShouldLogToConsole())
+                    if (ShouldLogToConsole(logger))
                         Console.WriteLine(message);
                 }
                 else
                 {
-                    if (ShouldLogToDebugWindow())
+                    if (ShouldLogToDebugWindow(logger))
                         Debug.WriteLine(message + "; Error: " + ex);
-                    if (ShouldLogToConsole())
+                    if (ShouldLogToConsole(logger))
                         Console.WriteLine(message + "; Error: " + ex);
                 }
-                Logger?.Warn(message, ex);
+                logger?.Warn(message, ex);
             }
             catch (Exception exOuter)
             {
-                LogFunctionNoAutoLog(System.Reflection.MethodBase.GetCurrentMethod(), new { message, ex }, true, exception: exOuter);
+                LogFunctionNoAutoLog(logger, null, System.Reflection.MethodBase.GetCurrentMethod(), new { message, ex }, true, exception: exOuter);
                 throw;
             }
         }
-#if __IOS__
-        public static void WriteWarnPrefix(string logPrefix, string message, Exception? ex = null)
-#else
-        public static void WriteWarnPrefix(string logPrefix, string message, Exception ex = null)
-#endif
+
+        public static void WriteWarnPrefix(ICommonLogger logger, ILoggingContext loggingContext, string logPrefix, string message, Exception ex = null)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { logPrefix, message, ex }))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { logPrefix, message, ex }))
             {
-                WriteWarnPrefixNoAutoLog(logPrefix, message, ex);
+                WriteWarnPrefixNoAutoLog(logger, logPrefix, message, ex);
             }
         }
-#if __IOS__
-        public static void WriteWarnPrefixNoAutoLog(string logPrefix, string message, Exception? ex = null)
-#else
-        public static void WriteWarnPrefixNoAutoLog(string logPrefix, string message, Exception ex = null)
-#endif
+
+        public static void WriteWarnPrefixNoAutoLog(ICommonLogger logger, string logPrefix, string message, Exception ex = null)
         {
             try
             {
                 if (ex == null)
                 {
-                    if (ShouldLogToDebugWindow())
+                    if (ShouldLogToDebugWindow(logger))
                         Debug.WriteLine(logPrefix + message);
-                    if (ShouldLogToConsole())
+                    if (ShouldLogToConsole(logger))
                         Console.WriteLine(logPrefix + message);
                 }
                 else
                 {
-                    if (ShouldLogToDebugWindow())
+                    if (ShouldLogToDebugWindow(logger))
                         Debug.WriteLine(logPrefix + message + "; Error: " + ex);
-                    if (ShouldLogToConsole())
+                    if (ShouldLogToConsole(logger))
                         Console.WriteLine(logPrefix + message + "; Error: " + ex);
                 }
-                Logger?.Warn(logPrefix + message, ex);
+                logger?.Warn(logPrefix + message, ex);
             }
             catch (Exception exOuter)
             {
-                LogFunctionNoAutoLog(System.Reflection.MethodBase.GetCurrentMethod(), new { message, ex }, true, logPrefix);
-                Logger?.Error(logPrefix + string.Format("{0}", System.Reflection.MethodBase.GetCurrentMethod().Name), exOuter);
+                LogFunctionNoAutoLog(logger, null, System.Reflection.MethodBase.GetCurrentMethod(), new { message, ex }, true, logPrefix);
+                logger?.Error(logPrefix + string.Format("{0}", System.Reflection.MethodBase.GetCurrentMethod().Name), exOuter);
                 throw;
             }
         }
-        public static void WriteWarnFormat(string format, params object[] args)
+        public static void WriteWarnFormat(ICommonLogger logger, ILoggingContext loggingContext, string format, params object[] args)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { format, args }))
+            using (var vAutoLogFunction = new Logging.AutoLogFunction(logger, loggingContext, new { format, args }))
             {
-                WriteWarnFormatNoAutoLog(format, args);
+                WriteWarnFormatNoAutoLog(logger, format, args);
             }
         }
-        public static void WriteWarnFormatNoAutoLog(string format, params object[] args)
+        public static void WriteWarnFormatNoAutoLog(ICommonLogger logger, string format, params object[] args)
         {
             try
             {
                 string message = string.Format(format, args);
-                if (ShouldLogToDebugWindow())
+                if (ShouldLogToDebugWindow(logger))
                     Debug.WriteLine(message);
-                if (ShouldLogToConsole())
+                if (ShouldLogToConsole(logger))
                     Console.WriteLine(message);
-                Logger?.Warn(message);
+                logger?.Warn(message);
             }
             catch (Exception exOuter)
             {
-                LogFunctionNoAutoLog(System.Reflection.MethodBase.GetCurrentMethod(), new { format, args }, true, exception: exOuter);
+                LogFunctionNoAutoLog(logger, null, System.Reflection.MethodBase.GetCurrentMethod(), new { format, args }, true, exception: exOuter);
                 throw;
             }
         }
@@ -2745,7 +1481,7 @@ namespace AdvancedLogging.Utilities
             }
             catch (Exception exOuter)
             {
-                LoggingUtils.WriteError("Error in SqlDbTypeToString:", exOuter);
+                WriteError(null, "Error in SqlDbTypeToString:", exOuter);
                 throw;
             }
         }

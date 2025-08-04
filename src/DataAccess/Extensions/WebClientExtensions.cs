@@ -1,6 +1,7 @@
 using AdvancedLogging.Constants;
 using AdvancedLogging.Interfaces;
 using AdvancedLogging.Logging;
+using AdvancedLogging.Logging.Interfaces;
 using AdvancedLogging.Models;
 using AdvancedLogging.Utilities;
 using Polly;
@@ -20,13 +21,15 @@ namespace AdvancedLogging.Extensions
     public static class WebClientExtensions
     {
         private static async Task<T> ExecuteWithRetryAsync<T>(
+            ICommonLogger logger,
+            ILoggingContext loggingContext,
             Func<Task<T>> action,
             string actionName,
             int retries,
             int retryWaitMS,
             int autoTimeoutIncrement = 0)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { actionName, retries, retryWaitMS }))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { actionName, retries, retryWaitMS }))
             {
                 if (autoTimeoutIncrement > 0)
                 {
@@ -49,7 +52,7 @@ namespace AdvancedLogging.Extensions
                     {
                         T result = await action();
                         sw.Stop();
-                        LoggingUtils.ProcessStopWatch(ref sw, vAutoLogFunction, actionName, LoggingUtils.DebugPrintLevel[ConfigurationSetting.Log_FunctionHeaderMethod]);
+                        LoggingUtils.ProcessStopWatch(logger, loggingContext, ref sw, vAutoLogFunction, actionName, LoggingUtils.DebugPrintLevel[ConfigurationSetting.Log_FunctionHeaderMethod]);
                         return result;
                     }
                     catch (Exception ex)
@@ -63,13 +66,15 @@ namespace AdvancedLogging.Extensions
         }
 
         private static async Task ExecuteWithRetryAsync(
+            ICommonLogger logger,
+            ILoggingContext loggingContext,
             Action action,
             string actionName,
             int retries,
             int retryWaitMS,
             int autoTimeoutIncrement = 0)
         {
-            await ExecuteWithRetryAsync(async () =>
+            await ExecuteWithRetryAsync(logger, loggingContext, async () =>
             {
                 action();
                 return await Task.FromResult(true); // Wrap synchronous action
@@ -77,52 +82,34 @@ namespace AdvancedLogging.Extensions
         }
 
 
-        /// <summary>
-        /// Downloads data from the specified address with retry logic.
-        /// </summary>
-        public static byte[] DownloadData(this WebClient webClient, string address, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static byte[] DownloadData(this WebClient webClient, ICommonLogger logger, ILoggingContext loggingContext, string address, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            return ExecuteWithRetryAsync(() => Task.Run(() => webClient.DownloadData(address)), nameof(webClient.DownloadData), retries, retryWaitMS, autoTimeoutIncrement).GetAwaiter().GetResult();
+            return ExecuteWithRetryAsync(logger, loggingContext, () => Task.Run(() => webClient.DownloadData(address)), nameof(webClient.DownloadData), retries, retryWaitMS, autoTimeoutIncrement).GetAwaiter().GetResult();
         }
 
-        /// <summary>
-        /// Asynchronously downloads data from the specified address with retry logic.
-        /// </summary>
-        public async static Task<byte[]> DownloadDataAsync(this WebClient webClient, Uri address, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public async static Task<byte[]> DownloadDataAsync(this WebClient webClient, ICommonLogger logger, ILoggingContext loggingContext, Uri address, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            return await ExecuteWithRetryAsync(() => webClient.DownloadDataTaskAsync(address), nameof(webClient.DownloadDataTaskAsync), retries, retryWaitMS, autoTimeoutIncrement);
+            return await ExecuteWithRetryAsync(logger, loggingContext, () => webClient.DownloadDataTaskAsync(address), nameof(webClient.DownloadDataTaskAsync), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
-        /// <summary>
-        /// Downloads a file from the specified address with retry logic.
-        /// </summary>
-        public static void DownloadFile(this WebClient webClient, string address, string fileName, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static void DownloadFile(this WebClient webClient, ICommonLogger logger, ILoggingContext loggingContext, string address, string fileName, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            ExecuteWithRetryAsync(() => webClient.DownloadFile(address, fileName), nameof(webClient.DownloadFile), retries, retryWaitMS, autoTimeoutIncrement).GetAwaiter().GetResult();
+            ExecuteWithRetryAsync(logger, loggingContext, () => webClient.DownloadFile(address, fileName), nameof(webClient.DownloadFile), retries, retryWaitMS, autoTimeoutIncrement).GetAwaiter().GetResult();
         }
 
-        /// <summary>
-        /// Asynchronously downloads a file from the specified address with retry logic.
-        /// </summary>
-        public async static Task DownloadFileAsync(this WebClient webClient, Uri address, string fileName, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public async static Task DownloadFileAsync(this WebClient webClient, ICommonLogger logger, ILoggingContext loggingContext, Uri address, string fileName, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            await ExecuteWithRetryAsync(() => webClient.DownloadFileTaskAsync(address, fileName), nameof(webClient.DownloadFileTaskAsync), retries, retryWaitMS, autoTimeoutIncrement);
+            await ExecuteWithRetryAsync(logger, loggingContext, () => webClient.DownloadFileTaskAsync(address, fileName), nameof(webClient.DownloadFileTaskAsync), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
-        /// <summary>
-        /// Downloads a string from the specified address with retry logic.
-        /// </summary>
-        public static string DownloadString(this WebClient webClient, string address, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public static string DownloadString(this WebClient webClient, ICommonLogger logger, ILoggingContext loggingContext, string address, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            return ExecuteWithRetryAsync(() => Task.Run(() => webClient.DownloadString(address)), nameof(webClient.DownloadString), retries, retryWaitMS, autoTimeoutIncrement).GetAwaiter().GetResult();
+            return ExecuteWithRetryAsync(logger, loggingContext, () => Task.Run(() => webClient.DownloadString(address)), nameof(webClient.DownloadString), retries, retryWaitMS, autoTimeoutIncrement).GetAwaiter().GetResult();
         }
 
-        /// <summary>
-        /// Asynchronously downloads a string from the specified address with retry logic.
-        /// </summary>
-        public async static Task<string> DownloadStringAsync(this WebClient webClient, Uri address, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        public async static Task<string> DownloadStringAsync(this WebClient webClient, ICommonLogger logger, ILoggingContext loggingContext, Uri address, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            return await ExecuteWithRetryAsync(() => webClient.DownloadStringTaskAsync(address), nameof(webClient.DownloadStringTaskAsync), retries, retryWaitMS, autoTimeoutIncrement);
+            return await ExecuteWithRetryAsync(logger, loggingContext, () => webClient.DownloadStringTaskAsync(address), nameof(webClient.DownloadStringTaskAsync), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
         // Note: The remaining WebClient extensions are not implemented with retry logic for brevity.

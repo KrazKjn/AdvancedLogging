@@ -17,6 +17,9 @@ using System.Net.Http;
 using System.Reflection;
 using System.Windows.Forms;
 using AdvancedLogging.AutoCoder;
+using AdvancedLogging.Interfaces;
+using AdvancedLogging.Logging.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AdvancedLogging.TestConsoleApp
 {
@@ -24,22 +27,36 @@ namespace AdvancedLogging.TestConsoleApp
     {
         static void Main() // string[] args
         {
-            ApplicationSettings.Logger = new Log4NetLogger("TestConsoleApp");
-            SecurityProtocol.EnableAllTlsSupport();
-            LogConfigData();
-            RunAllTests();
+            var serviceProvider = new ServiceCollection()
+                .AddSingleton<ICommonLogger>(new Log4NetLogger("TestConsoleApp"))
+                .AddSingleton<ILoggingContext, Log4NetLoggingContext>()
+                .BuildServiceProvider();
 
-            ApplicationSettings.Logger = new SeriLogger();
-            LogConfigData();
-            RunAllTests();
+            var logger = serviceProvider.GetService<ICommonLogger>();
+
+            SecurityProtocol.EnableAllTlsSupport();
+            LogConfigData(logger);
+            RunAllTests(serviceProvider);
+
+            serviceProvider = new ServiceCollection()
+                .AddSingleton<ICommonLogger>(new SeriLogger())
+                .AddSingleton<ILoggingContext, SeriLogLoggingContext>()
+                .BuildServiceProvider();
+
+            logger = serviceProvider.GetService<ICommonLogger>();
+
+            LogConfigData(logger);
+            RunAllTests(serviceProvider);
         }
-        private static void RunAllTests()
+        private static void RunAllTests(IServiceProvider serviceProvider)
         {
-            using (var vAutoLogFunction = new AutoLogFunction())
+            var logger = serviceProvider.GetService<ICommonLogger>();
+            var loggingContext = serviceProvider.GetService<ILoggingContext>();
+
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { }))
             {
                 try
                 {
-                    //string url = "https://live.com";
                     string url = "https://learn.microsoft.com/en-us/aspnet/core/blazor/security/blazor-web-app-with-oidc?view=aspnetcore-9.0&pivots=without-bff-pattern";
                     vAutoLogFunction.WriteLog("Testing: VerifyUrl ...");
                     if (Utils.VerifyUrl(url, out Uri _DetectedUri))
@@ -50,7 +67,7 @@ namespace AdvancedLogging.TestConsoleApp
                     {
                         dynamic dt = "Test".ToType("Test".GetType());
 
-                        dt.Log(0, vAutoLogFunction.Logger);
+                        dt.Log(logger, 0);
                     }
                     catch (Exception ex)
                     {
@@ -74,14 +91,12 @@ namespace AdvancedLogging.TestConsoleApp
                         Timeout = 10
                     };
 
-                    //DataConnectionDialog dataConnectionDialog = new DataConnectionDialog();
-
                     string userName = "";
                     string password = "";
                     string name = null;
 
                     CredentialsDialog dialog = new CredentialsDialog("SQL Credentials");
-                    if (name != null) dialog.AlwaysDisplay = true; // prevent an infinite loop
+                    if (name != null) dialog.AlwaysDisplay = true;
                     if (dialog.Show(name) == DialogResult.OK)
                     {
                         userName = dialog.Name;
@@ -102,59 +117,59 @@ namespace AdvancedLogging.TestConsoleApp
                     try
                     {
                         vAutoLogFunction.WriteLog("Testing: TestHttpWebRequest ...");
-                        TestHttpWebRequest(httpWebRequest);
+                        TestHttpWebRequest(logger, loggingContext, httpWebRequest);
                     }
                     catch { }
                     try
                     {
                         vAutoLogFunction.WriteLog("Testing: TestWebRequest ...");
-                        TestWebRequest(webRequest);
+                        TestWebRequest(logger, loggingContext, webRequest);
                     }
                     catch { }
                     try
                     {
                         vAutoLogFunction.WriteLog("Testing: TestHttpClient ...");
-                        TestHttpClient(httpClient, _DetectedUri ?? new Uri(url));
+                        TestHttpClient(logger, loggingContext, httpClient, _DetectedUri ?? new Uri(url));
                     }
                     catch { }
                     try
                     {
                         vAutoLogFunction.WriteLog("Testing: TestWebClient ...");
-                        TestWebClient(webClient, _DetectedUri ?? new Uri(url));
+                        TestWebClient(logger, loggingContext, webClient, _DetectedUri ?? new Uri(url));
                     }
                     catch { }
                     try
                     {
                         vAutoLogFunction.WriteLog("Testing: TestWebClient ...");
-                        TestWebClient(webClient, _DetectedUri.OriginalString ?? url);
+                        TestWebClient(logger, loggingContext, webClient, _DetectedUri.OriginalString ?? url);
                     }
                     catch { }
                     try
                     {
                         vAutoLogFunction.WriteLog("Testing: TestSqlCommand using SqlHelperStatic ...");
-                        TestSqlCommand(sqlCommand, arrParms, true);
+                        TestSqlCommand(logger, loggingContext, sqlCommand, arrParms, true);
                     }
                     catch { }
                     try
                     {
                         vAutoLogFunction.WriteLog("Testing: TestSqlCommand without using SqlHelperStatic ...");
-                        TestSqlCommand(sqlCommand, arrParms);
+                        TestSqlCommand(logger, loggingContext, sqlCommand, arrParms);
                     }
                     catch { }
                     try
                     {
                         vAutoLogFunction.WriteLog("Testing: TestSqlCommand SqlHelperStatic and creating a SQL Exception ...");
-                        TestSqlCommand(sqlCommand, arrParms, true, true);
+                        TestSqlCommand(logger, loggingContext, sqlCommand, arrParms, true, true);
                     }
                     catch { }
                     try
                     {
                         vAutoLogFunction.WriteLog("Testing: TestDataTypes ...");
-                        TestDataTypes(10.80m, "Test String", 456.9874, 5987);
+                        TestDataTypes(logger, loggingContext, 10.80m, "Test String", 456.9874, 5987);
                     }
                     catch { }
 
-                    TestClass tc = new TestClass();
+                    TestClass tc = new TestClass(logger, loggingContext);
                     try
                     {
                         vAutoLogFunction.WriteLog("Testing: using a class called TestClass() ...");
@@ -170,34 +185,34 @@ namespace AdvancedLogging.TestConsoleApp
                     try
                     {
                         vAutoLogFunction.WriteLog("Testing: TestSuppresHeader ...");
-                        TestSuppresHeader("TestSuppresHeader");
+                        TestSuppresHeader(logger, loggingContext, "TestSuppresHeader");
                     }
                     catch { }
                     try
                     {
                         vAutoLogFunction.WriteLog("Testing: TestAutoLog ...");
-                        TestAutoLog();
+                        TestAutoLog(logger, loggingContext);
                     }
                     catch { }
 
                     try
                     {
                         vAutoLogFunction.WriteLog("Testing: Function Parameters ...");
-                        TestParameters(null, 1, "Test");
+                        TestParameters(logger, loggingContext, null, 1, "Test");
                     }
                     catch { }
 
                     try
                     {
                         vAutoLogFunction.WriteLog("Testing: Retry Logic ...");
-                        TestRetryLogic();
+                        TestRetryLogic(logger, loggingContext);
                     }
                     catch { }
 
                     try
                     {
                         vAutoLogFunction.WriteLog("Testing: AutoCoder ...");
-                        TestAutoCoder();
+                        TestAutoCoder(logger, loggingContext);
                     }
                     catch { }
                 }
@@ -209,15 +224,15 @@ namespace AdvancedLogging.TestConsoleApp
             }
         }
 
-        private static void TestRetryLogic()
+        private static void TestRetryLogic(ICommonLogger logger, ILoggingContext loggingContext)
         {
-            using (var vAutoLogFunction = new AutoLogFunction())
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { }))
             {
                 try
                 {
                     var httpClient = new HttpClient();
                     httpClient.Timeout = TimeSpan.FromSeconds(2);
-                    var response = httpClient.GetAsync("http://localhost:12345/api/nonexistent", 3, 1000).Result;
+                    var response = httpClient.GetAsync(logger, loggingContext, "http://localhost:12345/api/nonexistent", 3, 1000).Result;
                 }
                 catch (Exception ex)
                 {
@@ -226,9 +241,9 @@ namespace AdvancedLogging.TestConsoleApp
             }
         }
 
-        private static void TestAutoCoder()
+        private static void TestAutoCoder(ICommonLogger logger, ILoggingContext loggingContext)
         {
-            using (var vAutoLogFunction = new AutoLogFunction())
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { }))
             {
                 try
                 {
@@ -272,9 +287,9 @@ public class TestAutoCoder
                 }
             }
         }
-        private static void TestParameters(object sender, int i, string str)
+        private static void TestParameters(ICommonLogger logger, ILoggingContext loggingContext, object sender, int i, string str)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { sender, i, str }))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { sender, i, str }))
             {
                 try
                 {
@@ -291,18 +306,18 @@ public class TestAutoCoder
                 }
             }
         }
-        private static void TestWebRequest(WebRequest _webRequest)
+        private static void TestWebRequest(ICommonLogger logger, ILoggingContext loggingContext, WebRequest _webRequest)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { _webRequest }))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { _webRequest }))
             {
                 try
                 {
                     _webRequest.Timeout = 10;
-                    WebResponse webResponse = _webRequest.GetResponse(ApplicationSettings.MaxAutoRetriesHttp, ApplicationSettings.AutoRetrySleepMsHttp, ApplicationSettings.AutoTimeoutIncrementMsHttp);
+                    WebResponse webResponse = _webRequest.GetResponse();
                     vAutoLogFunction.WriteLog(new string('-', 80));
                     vAutoLogFunction.WriteLog("This is NOT Debug Code.  This is a TEST at INFO Level.");
                     vAutoLogFunction.WriteLog(new string('-', 80));
-                    vAutoLogFunction.WriteLogFormat("Web Data: {0}", Utilities.ObjectDumper.Dump(webResponse));
+                    vAutoLogFunction.WriteLogFormat("Web Data: {0}", DataObjectDumper.Dump(webResponse, logger: logger));
                     vAutoLogFunction.WriteLog(new string('-', 80));
                     webResponse.Close();
                 }
@@ -314,18 +329,18 @@ public class TestAutoCoder
             }
         }
 
-        private static void TestHttpWebRequest(HttpWebRequest _httpWebRequest)
+        private static void TestHttpWebRequest(ICommonLogger logger, ILoggingContext loggingContext, HttpWebRequest _httpWebRequest)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { _httpWebRequest }))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { _httpWebRequest }))
             {
                 try
                 {
                     _httpWebRequest.Timeout = 10;
-                    WebResponse webResponse = _httpWebRequest.GetResponse(ApplicationSettings.MaxAutoRetriesHttp, ApplicationSettings.AutoRetrySleepMsHttp, ApplicationSettings.AutoTimeoutIncrementMsHttp);
+                    WebResponse webResponse = _httpWebRequest.GetResponse();
                     vAutoLogFunction.WriteLog(new string('-', 80));
                     vAutoLogFunction.WriteLog("This is NOT Debug Code.  This is a TEST at INFO Level.");
                     vAutoLogFunction.WriteLog(new string('-', 80));
-                    vAutoLogFunction.WriteLogFormat("Web Data: {0}", Utilities.ObjectDumper.Dump(webResponse));
+                    vAutoLogFunction.WriteLogFormat("Web Data: {0}", DataObjectDumper.Dump(webResponse, logger: logger));
                     vAutoLogFunction.WriteLog(new string('-', 80));
                     webResponse.Close();
                 }
@@ -337,22 +352,21 @@ public class TestAutoCoder
             }
         }
 
-        private async static void TestHttpClient(HttpClient httpClient, Uri uri)
+        private async static void TestHttpClient(ICommonLogger logger, ILoggingContext loggingContext, HttpClient httpClient, Uri uri)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { httpClient }))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { httpClient }))
             {
                 try
                 {
                     httpClient.Timeout = new TimeSpan(10 * 1000);
-                    HttpResponseMessage httpResponseMessage = await httpClient.GetAsync(uri.OriginalString, ApplicationSettings.MaxAutoRetriesHttp, ApplicationSettings.AutoRetrySleepMsHttp, ApplicationSettings.AutoTimeoutIncrementMsHttp);
+                    HttpResponseMessage httpResponseMessage = await httpClient.GetAsync(logger, loggingContext, uri.OriginalString, ApplicationSettings.MaxAutoRetriesHttp, ApplicationSettings.AutoRetrySleepMsHttp, ApplicationSettings.AutoTimeoutIncrementMsHttp);
                     httpResponseMessage.EnsureSuccessStatusCode();
-                    // Read and display the response content
                     string responseBody = await httpResponseMessage.Content.ReadAsStringAsync();
 
                     vAutoLogFunction.WriteLog(new string('-', 80));
                     vAutoLogFunction.WriteLog("This is NOT Debug Code.  This is a TEST at INFO Level.");
                     vAutoLogFunction.WriteLog(new string('-', 80));
-                    vAutoLogFunction.WriteLogFormat("Web Data: {0}", Utilities.ObjectDumper.Dump(responseBody));
+                    vAutoLogFunction.WriteLogFormat("Web Data: {0}", DataObjectDumper.Dump(responseBody, logger: logger));
                     vAutoLogFunction.WriteLog(new string('-', 80));
                     httpResponseMessage.Dispose();
                 }
@@ -364,19 +378,19 @@ public class TestAutoCoder
             }
         }
 
-        private static void TestWebClient(WebClientExtended webClientExtended, Uri uri)
+        private static void TestWebClient(ICommonLogger logger, ILoggingContext loggingContext, WebClientExtended webClientExtended, Uri uri)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { webClientExtended }))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { webClientExtended }))
             {
                 try
                 {
                     webClientExtended.Timeout = 10;
-                    string responseBody = webClientExtended.DownloadString(uri, ApplicationSettings.MaxAutoRetriesHttp, ApplicationSettings.AutoRetrySleepMsHttp, ApplicationSettings.AutoTimeoutIncrementMsHttp);
+                    string responseBody = webClientExtended.DownloadString(logger, loggingContext, uri.OriginalString, ApplicationSettings.MaxAutoRetriesHttp, ApplicationSettings.AutoRetrySleepMsHttp, ApplicationSettings.AutoTimeoutIncrementMsHttp);
 
                     vAutoLogFunction.WriteLog(new string('-', 80));
                     vAutoLogFunction.WriteLog("This is NOT Debug Code.  This is a TEST at INFO Level.");
                     vAutoLogFunction.WriteLog(new string('-', 80));
-                    vAutoLogFunction.WriteLogFormat("Web Data: {0}", Utilities.ObjectDumper.Dump(responseBody));
+                    vAutoLogFunction.WriteLogFormat("Web Data: {0}", DataObjectDumper.Dump(responseBody, logger: logger));
                     vAutoLogFunction.WriteLog(new string('-', 80));
                 }
                 catch (Exception exOuter)
@@ -387,19 +401,19 @@ public class TestAutoCoder
             }
         }
 
-        private static void TestWebClient(WebClientExtended webClientExtended, string uri)
+        private static void TestWebClient(ICommonLogger logger, ILoggingContext loggingContext, WebClientExtended webClientExtended, string uri)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { webClientExtended }))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { webClientExtended }))
             {
                 try
                 {
                     webClientExtended.Timeout = 10;
-                    string responseBody = webClientExtended.DownloadString(uri, ApplicationSettings.MaxAutoRetriesHttp, ApplicationSettings.AutoRetrySleepMsHttp, ApplicationSettings.AutoTimeoutIncrementMsHttp);
+                    string responseBody = webClientExtended.DownloadString(logger, loggingContext, uri, ApplicationSettings.MaxAutoRetriesHttp, ApplicationSettings.AutoRetrySleepMsHttp, ApplicationSettings.AutoTimeoutIncrementMsHttp);
 
                     vAutoLogFunction.WriteLog(new string('-', 80));
                     vAutoLogFunction.WriteLog("This is NOT Debug Code.  This is a TEST at INFO Level.");
                     vAutoLogFunction.WriteLog(new string('-', 80));
-                    vAutoLogFunction.WriteLogFormat("Web Data: {0}", Utilities.ObjectDumper.Dump(responseBody));
+                    vAutoLogFunction.WriteLogFormat("Web Data: {0}", DataObjectDumper.Dump(responseBody, logger: logger));
                     vAutoLogFunction.WriteLog(new string('-', 80));
                 }
                 catch (Exception exOuter)
@@ -410,9 +424,9 @@ public class TestAutoCoder
             }
         }
 
-        private static void TestSqlCommand(SqlCommand _sqlCommand, SqlParameter[] arrParms, bool bUseSqlHelperStatic = false, bool bThrowException = false)
+        private static void TestSqlCommand(ICommonLogger logger, ILoggingContext loggingContext, SqlCommand _sqlCommand, SqlParameter[] arrParms, bool bUseSqlHelperStatic = false, bool bThrowException = false)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { _sqlCommand, arrParms, bUseSqlHelperStatic }, null, null, false, bThrowException))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { _sqlCommand, arrParms, bUseSqlHelperStatic }, null, false, bThrowException))
             {
                 try
                 {
@@ -486,9 +500,9 @@ public class TestAutoCoder
                 }
             }
         }
-        private static void TestDataTypes(decimal decValue, string sValue, double dValue, Int64 iValue)
+        private static void TestDataTypes(ICommonLogger logger, ILoggingContext loggingContext, decimal decValue, string sValue, double dValue, Int64 iValue)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { decValue, sValue, dValue, iValue }))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { decValue, sValue, dValue, iValue }))
             {
                 try
                 {
@@ -501,7 +515,7 @@ public class TestAutoCoder
                 }
             }
         }
-        private static void TestAutoLog()
+        private static void TestAutoLog(ICommonLogger logger, ILoggingContext loggingContext)
         {
             List<string> lstString = new List<string>() { "Value1", "Value2" };
             Dictionary<string, string> dicString = new Dictionary<string, string>() { { "Key", "Value" } };
@@ -511,11 +525,11 @@ public class TestAutoCoder
 
             dicString2.AddOrUpdate("Key1", "Value1", (key, oldValue) => "Value1");
             dicString2.AddOrUpdate("Key1", "Value2", (key, oldValue) => "Value2");
-            TestAutoLogParms(lstString, dicString, dicString2, arrString, arrInt);
+            TestAutoLogParms(logger, loggingContext, lstString, dicString, dicString2, arrString, arrInt);
         }
-        private static void TestAutoLogParms(List<string> lstString, Dictionary<string, string> dicString, System.Collections.Concurrent.ConcurrentDictionary<string, string> dicString2, string[] arrString, int[] arrInt)
+        private static void TestAutoLogParms(ICommonLogger logger, ILoggingContext loggingContext, List<string> lstString, Dictionary<string, string> dicString, System.Collections.Concurrent.ConcurrentDictionary<string, string> dicString2, string[] arrString, int[] arrInt)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { lstString, dicString, dicString2, arrString, arrInt }))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { lstString, dicString, dicString2, arrString, arrInt }))
             {
                 try
                 {
@@ -523,7 +537,7 @@ public class TestAutoCoder
                     vAutoLogFunction.WriteLog("Test Info Message");
                     arrInt[0]++;
                     if (arrInt[0] < arrInt[1])
-                        TestAutoLogParms(lstString, dicString, dicString2, arrString, arrInt);
+                        TestAutoLogParms(logger, loggingContext, lstString, dicString, dicString2, arrString, arrInt);
                     else
                     {
                         int y = 1;
@@ -537,9 +551,9 @@ public class TestAutoCoder
                 }
             }
         }
-        private static void TestSuppresHeader(string message)
+        private static void TestSuppresHeader(ICommonLogger logger, ILoggingContext loggingContext, string message)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { message }, bSuppressFunctionDeclaration: false))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { message }, bSuppressFunctionDeclaration: false))
             {
                 try
                 {
@@ -554,7 +568,7 @@ public class TestAutoCoder
                 }
             }
         }
-        private static void LogConfigData()
+        private static void LogConfigData(ICommonLogger logger)
         {
             Assembly testApp = Assembly.GetEntryAssembly();
             System.Configuration.Configuration config = null;
@@ -570,73 +584,43 @@ public class TestAutoCoder
                 try
                 {
                     XmlConfigurator.ConfigureAndWatch(appConfigFileInfo);
-                    ApplicationSettings.Logger.ConfigFile = appConfigFileInfo.FullName;
-                    ApplicationSettings.Logger.Monitoring = true;
+                    logger.ConfigFile = appConfigFileInfo.FullName;
+                    logger.Monitoring = true;
 
-                    string appConfigtext = BusinessLogic.Configuration.RedactConfigFileContents(ApplicationSettings.Logger.ConfigFileXml, ApplicationSettings.Logger);
+                    string appConfigtext = BusinessLogic.Configuration.RedactConfigFileContents(logger.ConfigFileXml, logger);
 
-                    ApplicationSettings.Logger.Info("Base Directory: " + AppDomain.CurrentDomain.BaseDirectory);
-                    ApplicationSettings.Logger.Info("Looking for configuration file at path: " + appConfigFileInfo.FullName);
-                    ApplicationSettings.Logger.InfoFormat("Configuration File Contents:\r\n{0}", appConfigtext);
-                    ApplicationSettings.Logger.InfoFormat("Using Settings from {0} file: START", appConfigFileInfo.Name);
-                    if (ApplicationSettings.Logger.IsDebugEnabled)
+                    logger.Info("Base Directory: " + AppDomain.CurrentDomain.BaseDirectory);
+                    logger.Info("Looking for configuration file at path: " + appConfigFileInfo.FullName);
+                    logger.InfoFormat("Configuration File Contents:\r\n{0}", appConfigtext);
+                    logger.InfoFormat("Using Settings from {0} file: START", appConfigFileInfo.Name);
+                    if (logger.IsDebugEnabled)
                     {
-                        ApplicationSettings.Logger.DebugFormat("ApplicationSettings.Logger: {0}", ApplicationSettings.Logger == null ? "Is Null" : "Is Set");
-                        ApplicationSettings.Logger.DebugFormat("Debug Level: [*] (i.e., LogLevel) -> [{0}]", ApplicationSettings.Logger.LogLevel);
-                        ApplicationSettings.Logger.DebugFormat("Monitoring: {0}", ApplicationSettings.Logger.Monitoring);
-                        ApplicationSettings.Logger.DebugFormat("log4netLvl: {0}", ApplicationSettings.Logger.Level.DisplayName);
-                        ApplicationSettings.Logger.Debug(new string('-', 80));
-                        foreach (var vitem in ApplicationSettings.Logger.DebugLevels)
+                        logger.DebugFormat("ApplicationSettings.Logger: {0}", logger == null ? "Is Null" : "Is Set");
+                        logger.DebugFormat("Debug Level: [*] (i.e., LogLevel) -> [{0}]", logger.LogLevel);
+                        logger.DebugFormat("Monitoring: {0}", logger.Monitoring);
+                        logger.DebugFormat("log4netLvl: {0}", logger.Level.DisplayName);
+                        logger.Debug(new string('-', 80));
+                        foreach (var vitem in logger.DebugLevels)
                         {
-                            ApplicationSettings.Logger.DebugFormat("Debug Level: [{0}] -> [{1}]", vitem.Key, vitem.Value);
+                            logger.DebugFormat("Debug Level: [{0}] -> [{1}]", vitem.Key, vitem.Value);
                         }
-                        ApplicationSettings.Logger.Debug(new string('-', 80));
+                        logger.Debug(new string('-', 80));
                         foreach (var vitem in LoggingUtils.DebugPrintLevel.OrderBy(x => x.Value))
                         {
-                            ApplicationSettings.Logger.DebugFormat("Debug Printing Level: [{0}] -> [{1}]", vitem.Key, vitem.Value);
+                            logger.DebugFormat("Debug Printing Level: [{0}] -> [{1}]", vitem.Key, vitem.Value);
                         }
-                        ApplicationSettings.Logger.Debug(new string('-', 80));
+                        logger.Debug(new string('-', 80));
 
-                        ApplicationSettings.Logger?.Debug("Written with ApplicationSettings.Logger.");
+                        logger?.Debug("Written with ApplicationSettings.Logger.");
                     }
-                    ApplicationSettings.Logger?.Info("Available Security Protocols ...");
-                    SecurityProtocol.LogSecurityProtocol((CommonLogger)ApplicationSettings.Logger);
+                    logger?.Info("Available Security Protocols ...");
+                    SecurityProtocol.LogSecurityProtocol((CommonLogger)logger);
                 }
                 catch (Exception ex)
                 {
-                    ApplicationSettings.Logger.ErrorFormat("Error Processing Config File {0}\n{1}", appConfigFileInfo.FullName, ex);
+                    logger.ErrorFormat("Error Processing Config File {0}\n{1}", appConfigFileInfo.FullName, ex);
                 }
             }
         }
     }
-    //bool TryGetDataConnectionStringFromUser(out string outConnectionString)
-    //{
-    //    using (var dialog = new DataConnectionDialog())
-    //    {
-    //        // If you want the user to select from any of the available data sources, do this:
-    //        DataSource.AddStandardDataSources(dialog);
-
-    //        // OR, if you want only certain data sources to be available
-    //        // (e.g. only SQL Server), do something like this instead: 
-    //        dialog.DataSources.Add(DataSource.SqlDataSource);
-    //        dialog.DataSources.Add(DataSource.SqlFileDataSource);
-    //    …
-
-    //    // The way how you show the dialog is somewhat unorthodox; `dialog.ShowDialog()`
-    //    // would throw a `NotSupportedException`. Do it this way instead:
-    //    DialogResult userChoice = DataConnectionDialog.Show(dialog);
-
-    //        // Return the resulting connection string if a connection was selected:
-    //        if (userChoice == DialogResult.OK)
-    //        {
-    //            outConnectionString = dialog.ConnectionString;
-    //            return true;
-    //        }
-    //        else
-    //        {
-    //            outConnectionString = null;
-    //            return false;
-    //        }
-    //    }
-    //}
 }

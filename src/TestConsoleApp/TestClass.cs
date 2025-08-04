@@ -1,4 +1,6 @@
-﻿using AdvancedLogging.Logging;
+using AdvancedLogging.Interfaces;
+using AdvancedLogging.Logging;
+using AdvancedLogging.Logging.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,6 +11,8 @@ namespace AdvancedLogging.TestConsoleApp
     class TestClass
     {
         private int myIntVar;
+        private readonly ICommonLogger _logger;
+        private readonly ILoggingContext _loggingContext;
 
         public int MyIntProperty
         {
@@ -16,9 +20,12 @@ namespace AdvancedLogging.TestConsoleApp
             set { myIntVar = value; }
         }
 
-        public TestClass()
+        public TestClass(ICommonLogger logger, ILoggingContext loggingContext)
         {
-            using (var vAutoLogFunction = new AutoLogFunction())
+            _logger = logger;
+            _loggingContext = loggingContext;
+
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { }))
             {
                 try
                 {
@@ -34,7 +41,7 @@ namespace AdvancedLogging.TestConsoleApp
 
         public string Test(bool bThrowException = false)
         {
-            using (var vAutoLogFunction = new AutoLogFunction())
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { bThrowException }))
             {
                 try
                 {

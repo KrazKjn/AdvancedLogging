@@ -1,9 +1,10 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Net;
 using System.Reflection;
 using System.Text;
+using AdvancedLogging.Interfaces;
 
 namespace AdvancedLogging.Utilities
 {
@@ -13,54 +14,22 @@ namespace AdvancedLogging.Utilities
         private readonly int _indentSize;
         private readonly StringBuilder _stringBuilder;
         private readonly List<int> _hashListOfFoundElements;
+        private readonly int _maxLevels;
+        private readonly ICommonLogger _logger;
 
-        private static int m_iMaxLevels = -1;
-        public static int Maxlevels
-        {
-            get { return m_iMaxLevels; }
-            set { m_iMaxLevels = value; }
-        }
 
-        private static bool m_bWriteToDebug = false;
-        public static bool WriteToDebug
-        {
-            get { return m_bWriteToDebug; }
-            set { m_bWriteToDebug = value; }
-        }
-
-        private static string m_strOutFile = "";
-        public static string OutFile
-        {
-            get { return m_strOutFile; }
-            set { m_strOutFile = value; }
-        }
-
-        private DataObjectDumper(int indentSize)
+        private DataObjectDumper(int indentSize, int maxLevels, ICommonLogger logger)
         {
             _indentSize = indentSize;
             _stringBuilder = new StringBuilder();
             _hashListOfFoundElements = new List<int>();
+            _maxLevels = maxLevels;
+            _logger = logger;
         }
 
-        public static void Reset()
+        public static string Dump(object element, int indentSize = 2, int maxLevels = -1, ICommonLogger logger = null)
         {
-            m_iMaxLevels = -1;
-        }
-        public static string Dump(object element)
-        {
-            return Dump(element, 2);
-        }
-        public static string Dump(object element, int indentSize, int _levelMax = -1, bool _writeDebug = false, string _strOutFile = "")
-        {
-            m_iMaxLevels = _levelMax;
-            m_bWriteToDebug = _writeDebug;
-            m_strOutFile = _strOutFile;
-            return Dump(element, indentSize);
-        }
-
-        public static string Dump(object element, int indentSize)
-        {
-            var instance = new DataObjectDumper(indentSize);
+            var instance = new DataObjectDumper(indentSize, maxLevels, logger);
             return instance.DumpElement(element);
         }
         private string DumpElement(object element)
@@ -74,7 +43,7 @@ namespace AdvancedLogging.Utilities
                 var objectType = element.GetType();
                 if (!typeof(IEnumerable).IsAssignableFrom(objectType))
                 {
-                    if (m_iMaxLevels > 0 && (_level + 1) > m_iMaxLevels)
+                    if (_maxLevels > 0 && (_level + 1) > _maxLevels)
                     {
                         return _stringBuilder.ToString();
                     }
@@ -136,12 +105,6 @@ namespace AdvancedLogging.Utilities
                                 value = fieldInfo != null
                                                    ? fieldInfo.GetValue(element)
                                                    : propertyInfo.GetValue(element, null);
-
-                                // This was an attempt to get more data when there are errors using the above code.
-                                // Needs more research
-
-                                //if (value == null)
-                                //    value = propertyInfo.GetType().GetProperties().Where(p => p.GetIndexParameters().Length == 0);
                             }
                             catch (Exception ex)
                             {
@@ -198,20 +161,17 @@ namespace AdvancedLogging.Utilities
         {
             var space = new string(' ', _level * _indentSize);
 
-            if (args != null)
+            if (args != null && args.Length > 0)
                 value = string.Format(value, args);
 
-            if (WriteToDebug)
+            if (_logger != null)
             {
-                System.Diagnostics.Debug.WriteLine(space + value);
+                _logger.Debug(space + value);
             }
-            if (OutFile.Length > 0)
+            else
             {
-                System.IO.StreamWriter sw = System.IO.File.AppendText(OutFile);
-                sw.WriteLine(space + value);
-                sw.Close();
+                _stringBuilder.AppendLine(space + value);
             }
-            _stringBuilder.AppendLine(space + value);
         }
 
         private string FormatValue(object o)
