@@ -64,9 +64,12 @@
     <Compile Include="Interfaces\ICommonLogger.cs" />
     <Compile Include="Interfaces\IDirectoryManager.cs" />
     <Compile Include="Interfaces\ILoggerUtility.cs" />
+    <Compile Include="Interfaces\ILoggingContext.cs" />
     <Compile Include="Utilities\LoggerUtility.cs" />
     <Compile Include="Utilities\LoggingUtils.cs" />
+    <Compile Include="Loggers\Log4NetLoggingContext.cs" />
     <Compile Include="Loggers\SeriLogger.cs" />
+    <Compile Include="Loggers\SeriLogLoggingContext.cs" />
     <Compile Include="Constants\SharedLevel.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Utilities\RemotingLoggerUtility.cs" />
