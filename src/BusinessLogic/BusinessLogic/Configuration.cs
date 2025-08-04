@@ -1,6 +1,7 @@
 using AdvancedLogging.DataAccess.Configurations;
 using AdvancedLogging.Interfaces;
 using AdvancedLogging.Logging;
+using AdvancedLogging.Logging.Interfaces;
 using AdvancedLogging.Utilities;
 using System;
 using System.Collections.Generic;
@@ -20,19 +21,15 @@ namespace AdvancedLogging.BusinessLogic
         private readonly string applicationNameKey = "/appSettings/ApplicationName";
         private readonly string serverKey = "/appSettings/ConfigurationServerUrl";
 
-        /// <summary>
-        /// Initialize a Configuration object using only, classical, XML from a configuration file.
-        /// 
-        /// The configuration server is queried, using the default configuration factory,
-        /// for additional/override configuration if the configuration contains the following keys:
-        ///     ApplicationName
-        ///     ClientName
-        ///     ConfigurationServerUrl
-        /// </summary>
-        /// <param name="configurationXML">Content of configuration file</param>
-        public Configuration(string configurationXML)
+        private readonly ICommonLogger _logger;
+        private readonly ILoggingContext _loggingContext;
+
+        public Configuration(ICommonLogger logger, ILoggingContext loggingContext, string configurationXML)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { configurationXML }))
+            _logger = logger;
+            _loggingContext = loggingContext;
+
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { configurationXML }))
             {
                 try
                 {
@@ -63,21 +60,12 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Initialize a Configuration object using XML from a configuration file and a specified configuration
-        /// server factory (suitable for dependency injection).
-        /// 
-        /// The configuration server is queried for additional/override configuration if 
-        /// the configuration contains the following keys:
-        ///     ApplicationName
-        ///     ClientName
-        ///     ConfigurationServerUrl
-        /// </summary>
-        /// <param name="configurationXML">Content of configuration file</param>
-        /// <param name="configurationServerFactory">Factory to use to create a configuration server</param>
-        public Configuration(string configurationXML, IConfigurationServerFactory configurationServerFactory)
+        public Configuration(ICommonLogger logger, ILoggingContext loggingContext, string configurationXML, IConfigurationServerFactory configurationServerFactory)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { configurationXML, configurationServerFactory }))
+            _logger = logger;
+            _loggingContext = loggingContext;
+
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { configurationXML, configurationServerFactory }))
             {
                 try
                 {
@@ -106,13 +94,9 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Get a collection of keys in the configuration.
-        /// </summary>
-        /// <returns>A collection of the keys.</returns>
         public Dictionary<string, Models.ConfigurationParameter>.KeyCollection GetKeys()
         {
-            using (var vAutoLogFunction = new AutoLogFunction())
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { }))
             {
                 try
                 {
@@ -127,20 +111,9 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Get a collection of keys in the configuration that begin with a given path.
-        /// </summary>
-        /// <param name="baseKeyPath">
-        ///     The base path to the key desired.  
-        ///     A path begins with a slash.  
-        ///     The parts of a path are separated by a slash.  
-        ///     There is no trailing slash.  
-        ///     Parts may not contain a slash.
-        /// </param>
-        /// <returns>A collection of the keys.</returns>
         public Dictionary<string, Models.ConfigurationParameter>.KeyCollection GetKeys(string baseKeyPath)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { baseKeyPath }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { baseKeyPath }))
             {
                 try
                 {
@@ -164,14 +137,9 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Assigns values of keys to corresponding field names in the object where 
-        /// the field name is the key name less the key pattern and its terminating slash.
-        /// </summary>
-        /// <param name="assignTo">Object to assign values to</param>
         public void AssignValuesToFields(Type assignTo)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { assignTo }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { assignTo }))
             {
                 try
                 {
@@ -185,21 +153,9 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Assigns values of keys to corresponding field names in the object where 
-        /// the field name is the key name less the key pattern and its terminating slash.
-        /// </summary>
-        /// <param name="assignTo">Object to assign values to</param>
-        /// <param name="baseKeyPath">
-        ///     The base path to the key desired.  
-        ///     A path begins with a slash.  
-        ///     The parts of a path are separated by a slash.  
-        ///     There is no trailing slash.  
-        ///     Parts may not contain a slash.
-        /// </param>
         public void AssignValuesToFields(Type assignTo, string baseKeyPath)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { assignTo, baseKeyPath }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { assignTo, baseKeyPath }))
             {
                 try
                 {
@@ -231,14 +187,9 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Assigns values of keys to corresponding field names in the object where 
-        /// the field name is the key name less the key pattern and its terminating slash.
-        /// </summary>
-        /// <param name="assignTo">Object to assign values to</param>
         public void AssignValuesToFields(Object assignTo)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { assignTo }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { assignTo }))
             {
                 try
                 {
@@ -252,21 +203,9 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Assigns values of keys to corresponding field names in the object where 
-        /// the field name is the key name less the key pattern and its terminating slash.
-        /// </summary>
-        /// <param name="assignTo">Object to assign values to</param>
-        /// <param name="baseKeyPath">
-        ///     The base path to the key desired.  
-        ///     A path begins with a slash.  
-        ///     The parts of a path are separated by a slash.  
-        ///     There is no trailing slash.  
-        ///     Parts may not contain a slash.
-        /// </param>
         public void AssignValuesToFields(Object assignTo, string baseKeyPath)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { assignTo, baseKeyPath }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { assignTo, baseKeyPath }))
             {
                 try
                 {
@@ -298,14 +237,9 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Assigns values of keys to corresponding property names in the object where 
-        /// the field name is the key name less the key pattern and its terminating slash.
-        /// </summary>
-        /// <param name="assignTo">Object to assign values to</param>
         public void AssignValuesToProperty(Type assignTo)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { assignTo }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { assignTo }))
             {
                 try
                 {
@@ -319,21 +253,9 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Assigns values of keys to corresponding property names in the object where 
-        /// the field name is the key name less the key pattern and its terminating slash.
-        /// </summary>
-        /// <param name="assignTo">Object to assign values to</param>
-        /// <param name="baseKeyPath">
-        ///     The base path to the key desired.  
-        ///     A path begins with a slash.  
-        ///     The parts of a path are separated by a slash.  
-        ///     There is no trailing slash.  
-        ///     Parts may not contain a slash.
-        /// </param>
         public void AssignValuesToProperty(Type assignTo, string baseKeyPath)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { assignTo, baseKeyPath }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { assignTo, baseKeyPath }))
             {
                 try
                 {
@@ -365,14 +287,9 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Assigns values of keys to corresponding property names in the object where 
-        /// the field name is the key name less the key pattern and its terminating slash.
-        /// </summary>
-        /// <param name="assignTo">Object to assign values to</param>
         public void AssignValuesToProperty(Object assignTo)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { assignTo }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { assignTo }))
             {
                 try
                 {
@@ -386,21 +303,9 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Assigns values of keys to corresponding property names in the object where 
-        /// the field name is the key name less the key pattern and its terminating slash.
-        /// </summary>
-        /// <param name="assignTo">Object to assign values to</param>
-        /// <param name="baseKeyPath">
-        ///     The base path to the key desired.  
-        ///     A path begins with a slash.  
-        ///     The parts of a path are separated by a slash.  
-        ///     There is no trailing slash.  
-        ///     Parts may not contain a slash.
-        /// </param>
         public void AssignValuesToProperty(Object assignTo, string baseKeyPath)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { assignTo, baseKeyPath }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { assignTo, baseKeyPath }))
             {
                 try
                 {
@@ -432,20 +337,9 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// This method will return a boolean indicating if the specified key exists.
-        /// </summary>
-        /// <param name="keyPath">
-        ///     The full path to the key desired.  
-        ///     A path begins with a slash.  
-        ///     The parts of a path are separated by a slash.  
-        ///     There is no trailing slash.  
-        ///     Parts may not contain a slash.
-        /// </param>
-        /// <returns>The value of the key.</returns>
         public bool ContainsKey(string keyPath)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { keyPath }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { keyPath }))
             {
                 try
                 {
@@ -459,20 +353,9 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// This method will return the value of a configuration parameter.
-        /// </summary>
-        /// <param name="keyPath">
-        ///     The full path to the key desired.  
-        ///     A path begins with a slash.  
-        ///     The parts of a path are separated by a slash.  
-        ///     There is no trailing slash.  
-        ///     Parts may not contain a slash.
-        /// </param>
-        /// <returns>The value of the key.</returns>
         public string GetKeyValue(string keyPath)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { keyPath }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { keyPath }))
             {
                 try
                 {
@@ -495,35 +378,15 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// This method will return the metadata of a configuration parameter.
-        /// </summary>
-        /// <param name="keyPath">
-        ///     The full path to the key desired.  
-        ///     A path begins with a slash.  
-        ///     The parts of a path are separated by a slash.  
-        ///     There is no trailing slash.  
-        ///     Parts may not contain a slash.
-        /// </param>
-        /// <param name="description">A description of what this parameter is.  May be null.</param>
-        /// <param name="defaultedFrom">
-        ///     If the parameter was defaulted, the value will be one of: 
-        ///         "Generic", "Application Level" or "Client Level".
-        ///     If the parameter is not defaulted, this will be null.
-        /// </param>
         public void GetKeyInformation(string keyPath, out string description, out string defaultedFrom)
         {
             description = configuration.Keys[keyPath].Description;
             defaultedFrom = configuration.Keys[keyPath].DefaultLevel;
         }
 
-        /// <summary>
-        /// Add configuration information from a Configuration Server
-        /// </summary>
-        /// <param name="svrDal">A Data Access Layer object for a Configuration Server</param>
         public void AddConfigFromServer(IConfigurationServer srvDAL)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { srvDAL }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { srvDAL }))
             {
                 try
                 {
@@ -540,14 +403,9 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Opens another application's Config File as a System.Configuration.Configuration
-        /// </summary>
-        /// <param name="fileName"></param>
-        /// <returns>System.Configuration.Configuration</returns>
-        public static System.Configuration.Configuration OpenConfigurationFile(string fileName)
+        public static System.Configuration.Configuration OpenConfigurationFile(ICommonLogger logger, ILoggingContext loggingContext, string fileName)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { fileName }))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { fileName }))
             {
                 if (!fileName.ToLower().EndsWith(".config"))
                     fileName += ".config";
@@ -578,7 +436,7 @@ namespace AdvancedLogging.BusinessLogic
         }
         private void ParseXmlConfiguration(string configurationXML)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { configurationXML }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { configurationXML }))
             {
                 try
                 {
@@ -601,7 +459,7 @@ namespace AdvancedLogging.BusinessLogic
 
         private void ParseConfigurationElement(XElement node, string parentKeyPath)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { node, parentKeyPath }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { node, parentKeyPath }))
             {
                 try
                 {
@@ -643,7 +501,7 @@ namespace AdvancedLogging.BusinessLogic
                             Dictionary<string, Models.ConfigurationParameter> baseCongfiguration,
                             Dictionary<string, Models.ConfigurationParameter> overrides)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { baseCongfiguration, overrides }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { baseCongfiguration, overrides }))
             {
                 try
                 {
@@ -667,21 +525,13 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-
-        /// <summary>
-        /// Update only a String type Key value in the Configuration file.
-        /// </summary>
-        /// <param name="config"></param>
-        /// <param name="Log"></param>
-        /// <param name="key"></param>
-        /// <param name="value"></param>
-        public static void UpdateConfigurationStringValue(System.Configuration.Configuration config, ICommonLogger Log, string key, string value)
+        public static void UpdateConfigurationStringValue(System.Configuration.Configuration config, ICommonLogger Log, ILoggingContext loggingContext, string key, string value)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { config, Log, key, value }))
+            using (var vAutoLogFunction = new AutoLogFunction(Log, loggingContext, new { config, Log, key, value }))
             {
                 try
                 {
-                    SetConfigurationStringValue(config, Log, key, value, false);
+                    SetConfigurationStringValue(config, Log, loggingContext, key, value, false);
                 }
                 catch (Exception exOuter)
                 {
@@ -691,21 +541,13 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Update only a Int type Key value in the Configuration file.
-        /// </summary>
-        /// <param name="config"></param>
-        /// <param name="Log"></param>
-        /// <param name="key"></param>
-        /// <param name="value"></param>
-        /// <param name="createKey"></param>
-        public static void UpdateConfigurationIntValue(System.Configuration.Configuration config, ICommonLogger Log, string key, int value)
+        public static void UpdateConfigurationIntValue(System.Configuration.Configuration config, ICommonLogger Log, ILoggingContext loggingContext, string key, int value)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { config, Log, key, value }))
+            using (var vAutoLogFunction = new AutoLogFunction(Log, loggingContext, new { config, Log, key, value }))
             {
                 try
                 {
-                    SetConfigurationStringValue(config, Log, key, value.ToString(), false);
+                    SetConfigurationStringValue(config, Log, loggingContext, key, value.ToString(), false);
                 }
                 catch (Exception exOuter)
                 {
@@ -715,21 +557,13 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Update only a Double type Key value in the Configuration file.
-        /// </summary>
-        /// <param name="config"></param>
-        /// <param name="Log"></param>
-        /// <param name="key"></param>
-        /// <param name="value"></param>
-        /// <param name="createKey"></param>
-        public static void UpdateConfigurationDoubleValue(System.Configuration.Configuration config, ICommonLogger Log, string key, double value)
+        public static void UpdateConfigurationDoubleValue(System.Configuration.Configuration config, ICommonLogger Log, ILoggingContext loggingContext, string key, double value)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { config, Log, key, value }))
+            using (var vAutoLogFunction = new AutoLogFunction(Log, loggingContext, new { config, Log, key, value }))
             {
                 try
                 {
-                    SetConfigurationStringValue(config, Log, key, value.ToString(), false);
+                    SetConfigurationStringValue(config, Log, loggingContext, key, value.ToString(), false);
                 }
                 catch (Exception exOuter)
                 {
@@ -739,21 +573,13 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Update only a bool/Boolean type Key value in the Configuration file.
-        /// </summary>
-        /// <param name="config"></param>
-        /// <param name="Log"></param>
-        /// <param name="key"></param>
-        /// <param name="value"></param>
-        /// <param name="createKey"></param>
-        public static void UpdateConfigurationBooleanValue(System.Configuration.Configuration config, ICommonLogger Log, string key, bool value)
+        public static void UpdateConfigurationBooleanValue(System.Configuration.Configuration config, ICommonLogger Log, ILoggingContext loggingContext, string key, bool value)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { config, Log, key, value }))
+            using (var vAutoLogFunction = new AutoLogFunction(Log, loggingContext, new { config, Log, key, value }))
             {
                 try
                 {
-                    SetConfigurationStringValue(config, Log, key, value.ToString(), false);
+                    SetConfigurationStringValue(config, Log, loggingContext, key, value.ToString(), false);
                 }
                 catch (Exception exOuter)
                 {
@@ -763,24 +589,16 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Update only a DateTime type Key value in the Configuration file.
-        /// </summary>
-        /// <param name="config"></param>
-        /// <param name="Log"></param>
-        /// <param name="key"></param>
-        /// <param name="value"></param>
-        /// <param name="createKey"></param>
-        public static void UpdateConfigurationDateValue(System.Configuration.Configuration config, ICommonLogger Log, string key, DateTime value, bool bDateOnly = false)
+        public static void UpdateConfigurationDateValue(System.Configuration.Configuration config, ICommonLogger Log, ILoggingContext loggingContext, string key, DateTime value, bool bDateOnly = false)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { config, Log, key, value, bDateOnly }))
+            using (var vAutoLogFunction = new AutoLogFunction(Log, loggingContext, new { config, Log, key, value, bDateOnly }))
             {
                 try
                 {
                     if (bDateOnly)
-                        SetConfigurationStringValue(config, Log, key, value.Date.ToString(), false);
+                        SetConfigurationStringValue(config, Log, loggingContext, key, value.Date.ToString(), false);
                     else
-                        SetConfigurationStringValue(config, Log, key, value.ToString(), false);
+                        SetConfigurationStringValue(config, Log, loggingContext, key, value.ToString(), false);
                 }
                 catch (Exception exOuter)
                 {
@@ -790,20 +608,13 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Update or Add (if does not exist) a String type Key value in the Configuration file.
-        /// </summary>
-        /// <param name="config"></param>
-        /// <param name="Log"></param>
-        /// <param name="key"></param>
-        /// <param name="value"></param>
-        public static void CreateConfigurationStringValue(System.Configuration.Configuration config, ICommonLogger Log, string key, string value)
+        public static void CreateConfigurationStringValue(System.Configuration.Configuration config, ICommonLogger Log, ILoggingContext loggingContext, string key, string value)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { config, Log, key, value }))
+            using (var vAutoLogFunction = new AutoLogFunction(Log, loggingContext, new { config, Log, key, value }))
             {
                 try
                 {
-                    SetConfigurationStringValue(config, Log, key, value, true);
+                    SetConfigurationStringValue(config, Log, loggingContext, key, value, true);
                 }
                 catch (Exception exOuter)
                 {
@@ -813,21 +624,13 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Update or Add (if does not exist) a Int type Key value in the Configuration file.
-        /// </summary>
-        /// <param name="config"></param>
-        /// <param name="Log"></param>
-        /// <param name="key"></param>
-        /// <param name="value"></param>
-        /// <param name="createKey"></param>
-        public static void CreateConfigurationIntValue(System.Configuration.Configuration config, ICommonLogger Log, string key, int value)
+        public static void CreateConfigurationIntValue(System.Configuration.Configuration config, ICommonLogger Log, ILoggingContext loggingContext, string key, int value)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { config, Log, key, value }))
+            using (var vAutoLogFunction = new AutoLogFunction(Log, loggingContext, new { config, Log, key, value }))
             {
                 try
                 {
-                    SetConfigurationStringValue(config, Log, key, value.ToString(), true);
+                    SetConfigurationStringValue(config, Log, loggingContext, key, value.ToString(), true);
                 }
                 catch (Exception exOuter)
                 {
@@ -837,21 +640,13 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Update or Add (if does not exist) a Double type Key value in the Configuration file.
-        /// </summary>
-        /// <param name="config"></param>
-        /// <param name="Log"></param>
-        /// <param name="key"></param>
-        /// <param name="value"></param>
-        /// <param name="createKey"></param>
-        public static void CreateConfigurationDoubleValue(System.Configuration.Configuration config, ICommonLogger Log, string key, double value)
+        public static void CreateConfigurationDoubleValue(System.Configuration.Configuration config, ICommonLogger Log, ILoggingContext loggingContext, string key, double value)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { config, Log, key, value }))
+            using (var vAutoLogFunction = new AutoLogFunction(Log, loggingContext, new { config, Log, key, value }))
             {
                 try
                 {
-                    SetConfigurationStringValue(config, Log, key, value.ToString(), true);
+                    SetConfigurationStringValue(config, Log, loggingContext, key, value.ToString(), true);
                 }
                 catch (Exception exOuter)
                 {
@@ -861,24 +656,16 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Update or Add (if does not exist) a DateTime type Key value in the Configuration file.
-        /// </summary>
-        /// <param name="config"></param>
-        /// <param name="Log"></param>
-        /// <param name="key"></param>
-        /// <param name="value"></param>
-        /// <param name="createKey"></param>
-        public static void CreateConfigurationDateValue(System.Configuration.Configuration config, ICommonLogger Log, string key, DateTime value, bool bDateOnly = false)
+        public static void CreateConfigurationDateValue(System.Configuration.Configuration config, ICommonLogger Log, ILoggingContext loggingContext, string key, DateTime value, bool bDateOnly = false)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { config, Log, key, value, bDateOnly }))
+            using (var vAutoLogFunction = new AutoLogFunction(Log, loggingContext, new { config, Log, key, value, bDateOnly }))
             {
                 try
                 {
                     if (bDateOnly)
-                        SetConfigurationStringValue(config, Log, key, value.Date.ToString(), true);
+                        SetConfigurationStringValue(config, Log, loggingContext, key, value.Date.ToString(), true);
                     else
-                        SetConfigurationStringValue(config, Log, key, value.ToString(), true);
+                        SetConfigurationStringValue(config, Log, loggingContext, key, value.ToString(), true);
                 }
                 catch (Exception exOuter)
                 {
@@ -887,21 +674,14 @@ namespace AdvancedLogging.BusinessLogic
                 }
             }
         }
-        /// <summary>
-        /// Update or Add (if does not exist) a bool/Boolean type Key value in the Configuration file.
-        /// </summary>
-        /// <param name="config"></param>
-        /// <param name="Log"></param>
-        /// <param name="key"></param>
-        /// <param name="value"></param>
-        /// <param name="createKey"></param>
-        public static void CreateConfigurationBooleanValue(System.Configuration.Configuration config, ICommonLogger Log, string key, bool value)
+
+        public static void CreateConfigurationBooleanValue(System.Configuration.Configuration config, ICommonLogger Log, ILoggingContext loggingContext, string key, bool value)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { config, Log, key, value }))
+            using (var vAutoLogFunction = new AutoLogFunction(Log, loggingContext, new { config, Log, key, value }))
             {
                 try
                 {
-                    SetConfigurationStringValue(config, Log, key, value.ToString(), true);
+                    SetConfigurationStringValue(config, Log, loggingContext, key, value.ToString(), true);
                 }
                 catch (Exception exOuter)
                 {
@@ -911,17 +691,9 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Private - Update or Add (if does not exist) a String type Key value in the Configuration file.
-        /// </summary>
-        /// <param name="config"></param>
-        /// <param name="Log"></param>
-        /// <param name="key"></param>
-        /// <param name="value"></param>
-        /// <param name="createKeyIfNotFound"></param>
-        private static void SetConfigurationStringValue(System.Configuration.Configuration config, ICommonLogger Log, string key, string value, Boolean createKeyIfNotFound)
+        private static void SetConfigurationStringValue(System.Configuration.Configuration config, ICommonLogger Log, ILoggingContext loggingContext, string key, string value, Boolean createKeyIfNotFound)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { config, Log, key, value, createKeyIfNotFound }))
+            using (var vAutoLogFunction = new AutoLogFunction(Log, loggingContext, new { config, Log, key, value, createKeyIfNotFound }))
             {
                 try
                 {
@@ -955,17 +727,9 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Get a String type Key value from the Configuration file.
-        /// </summary>
-        /// <param name="config"></param>
-        /// <param name="Log"></param>
-        /// <param name="key"></param>
-        /// <param name="defaultvalue"></param>
-        /// <returns></returns>
-        public static string GetConfigurationStringValue(System.Configuration.Configuration config, ICommonLogger Log, string key, string defaultvalue = null, bool bIsPassword = false)
+        public static string GetConfigurationStringValue(System.Configuration.Configuration config, ICommonLogger Log, ILoggingContext loggingContext, string key, string defaultvalue = null, bool bIsPassword = false)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { config, Log, key, defaultvalue, bIsPassword }))
+            using (var vAutoLogFunction = new AutoLogFunction(Log, loggingContext, new { config, Log, key, defaultvalue, bIsPassword }))
             {
                 try
                 {
@@ -1020,17 +784,9 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Get a Int type Key value from the Configuration file.
-        /// </summary>
-        /// <param name="config"></param>
-        /// <param name="Log"></param>
-        /// <param name="key"></param>
-        /// <param name="defaultvalue"></param>
-        /// <returns></returns>
-        public static int GetConfigurationIntValue(System.Configuration.Configuration config, ICommonLogger Log, string key, int defaultvalue = int.MaxValue)
+        public static int GetConfigurationIntValue(System.Configuration.Configuration config, ICommonLogger Log, ILoggingContext loggingContext, string key, int defaultvalue = int.MaxValue)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { config, Log, key, defaultvalue }))
+            using (var vAutoLogFunction = new AutoLogFunction(Log, loggingContext, new { config, Log, key, defaultvalue }))
             {
                 try
                 {
@@ -1093,17 +849,9 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Get a Double type Key value from the Configuration file.
-        /// </summary>
-        /// <param name="config"></param>
-        /// <param name="Log"></param>
-        /// <param name="key"></param>
-        /// <param name="defaultvalue"></param>
-        /// <returns></returns>
-        public static double GetConfigurationDoubleValue(System.Configuration.Configuration config, ICommonLogger Log, string key, double defaultvalue = double.MaxValue)
+        public static double GetConfigurationDoubleValue(System.Configuration.Configuration config, ICommonLogger Log, ILoggingContext loggingContext, string key, double defaultvalue = double.MaxValue)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { config, Log, key, defaultvalue }))
+            using (var vAutoLogFunction = new AutoLogFunction(Log, loggingContext, new { config, Log, key, defaultvalue }))
             {
                 try
                 {
@@ -1166,17 +914,9 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Get a DateTime.Date type Key value from the Configuration file.
-        /// </summary>
-        /// <param name="config"></param>
-        /// <param name="Log"></param>
-        /// <param name="key"></param>
-        /// <param name="defaultvalue"></param>
-        /// <returns></returns>
-        public static string GetConfigurationDateValue(System.Configuration.Configuration config, ICommonLogger Log, string key, DateTime defaultvalue)
+        public static string GetConfigurationDateValue(System.Configuration.Configuration config, ICommonLogger Log, ILoggingContext loggingContext, string key, DateTime defaultvalue)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { config, Log, key, defaultvalue }))
+            using (var vAutoLogFunction = new AutoLogFunction(Log, loggingContext, new { config, Log, key, defaultvalue }))
             {
                 try
                 {
@@ -1229,17 +969,9 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Get a DateTime type Key value from the Configuration file.
-        /// </summary>
-        /// <param name="config"></param>
-        /// <param name="Log"></param>
-        /// <param name="key"></param>
-        /// <param name="defaultvalue"></param>
-        /// <returns></returns>
-        public static DateTime GetConfigurationDateTimeValue(System.Configuration.Configuration config, ICommonLogger Log, string key, DateTime defaultvalue)
+        public static DateTime GetConfigurationDateTimeValue(System.Configuration.Configuration config, ICommonLogger Log, ILoggingContext loggingContext, string key, DateTime defaultvalue)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { config, Log, key, defaultvalue }))
+            using (var vAutoLogFunction = new AutoLogFunction(Log, loggingContext, new { config, Log, key, defaultvalue }))
             {
                 try
                 {
@@ -1292,17 +1024,9 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Get a bool/Boolean type Key value from the Configuration file.
-        /// </summary>
-        /// <param name="config"></param>
-        /// <param name="Log"></param>
-        /// <param name="key"></param>
-        /// <param name="defaultvalue"></param>
-        /// <returns></returns>
-        public static bool GetConfigurationBooleanValue(System.Configuration.Configuration config, ICommonLogger Log, string key, bool defaultvalue)
+        public static bool GetConfigurationBooleanValue(System.Configuration.Configuration config, ICommonLogger Log, ILoggingContext loggingContext, string key, bool defaultvalue)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { config, Log, key, defaultvalue }))
+            using (var vAutoLogFunction = new AutoLogFunction(Log, loggingContext, new { config, Log, key, defaultvalue }))
             {
                 try
                 {
@@ -1363,19 +1087,10 @@ namespace AdvancedLogging.BusinessLogic
                 }
             }
         }
-        // DbConnectionStringBuilder
 
-        /// <summary>
-        /// Get a SqlConnectionStringBuilder  type Key value from the Configuration file.
-        /// </summary>
-        /// <param name="config"></param>
-        /// <param name="Log"></param>
-        /// <param name="key"></param>
-        /// <param name="defaultvalue"></param>
-        /// <returns></returns>
-        public static SqlConnectionStringBuilder GetConfigurationConnectionValue(System.Configuration.Configuration config, ICommonLogger Log, string key, SqlConnectionStringBuilder defaultvalue)
+        public static SqlConnectionStringBuilder GetConfigurationConnectionValue(System.Configuration.Configuration config, ICommonLogger Log, ILoggingContext loggingContext, string key, SqlConnectionStringBuilder defaultvalue)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { config, Log, key, defaultvalue }))
+            using (var vAutoLogFunction = new AutoLogFunction(Log, loggingContext, new { config, Log, key, defaultvalue }))
             {
                 try
                 {
@@ -1423,21 +1138,12 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-
-        /// <summary>
-        /// Gets an item value from the Connection String
-        /// </summary>
-        /// <param name="itemName"></param>
-        /// <param name="connectionString"></param>
-        /// <returns></returns>
-        public static string GetConnectionStringItemValue(string itemName, string connectionString, string defaultvalue = null)
+        public static string GetConnectionStringItemValue(ICommonLogger logger, ILoggingContext loggingContext, string itemName, string connectionString, string defaultvalue = null)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { itemName, connectionString, defaultvalue }))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { itemName, connectionString, defaultvalue }))
             {
                 try
                 {
-                    // The connection string builder provides strongly typed properties corresponding to the known key/value pairs allowed by SQL Server
-                    // Case insensitive and also allows synonyms as documented in .NET by the ConnectionString property for this class
                     SqlConnectionStringBuilder sqlConnectionStringBuilder = new SqlConnectionStringBuilder(connectionString);
 
                     if (sqlConnectionStringBuilder.ContainsKey(itemName))
@@ -1460,20 +1166,12 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// Sets an item value in the Connection String
-        /// </summary>
-        /// <param name="itemName"></param>
-        /// <param name="itemValue"></param>
-        /// <param name="connectionString"></param>
-        public static string SetConnectionStringItemValue(string itemName, object itemValue, string connectionString)
+        public static string SetConnectionStringItemValue(ICommonLogger logger, ILoggingContext loggingContext, string itemName, object itemValue, string connectionString)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { itemName, itemValue, connectionString }))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { itemName, itemValue, connectionString }))
             {
                 try
                 {
-                    // The connection string builder provides strongly typed properties corresponding to the known key/value pairs allowed by SQL Server
-                    // Case insensitive and also allows synonyms as documented in .NET by the ConnectionString property for this class
                     SqlConnectionStringBuilder builder = new SqlConnectionStringBuilder(connectionString);
 
                     if (builder.ContainsKey(itemName))
@@ -1497,15 +1195,9 @@ namespace AdvancedLogging.BusinessLogic
             }
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="szConfigFile"></param>
-        /// <param name="commonLogger"></param>
-        /// <returns></returns>
-        public static string RedactConfigFileContents(XmlDocument xmlConfig, ICommonLogger commonLogger, string maskvalue = "********", bool purge = false)
+        public static string RedactConfigFileContents(ICommonLogger logger, ILoggingContext loggingContext, XmlDocument xmlConfig, string maskvalue = "********", bool purge = false)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { xmlConfig, commonLogger, maskvalue, purge }))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { xmlConfig, maskvalue, purge }))
             {
                 try
                 {
@@ -1522,11 +1214,7 @@ namespace AdvancedLogging.BusinessLogic
                         {
                             if (xlSetting.Attributes["key"] == null)
                             {
-                                if (xlSetting.Attributes["name"] == null)
-                                {
-                                    vAutoLogFunction.WriteDebugFormat("RedactConfigFile: Section: {0}; Item: {1} - Nothing to Replace.", xlSetting, xlSetting.InnerText);
-                                }
-                                else
+                                if (xlSetting.Attributes["name"] != null)
                                 {
                                     if (names.Contains(xlSetting.Attributes["name"].Value))
                                     {
@@ -1554,18 +1242,18 @@ namespace AdvancedLogging.BusinessLogic
                                         }
                                         vAutoLogFunction.WriteLogFormat("RedactConfigFile: Sanitizing: Section: {0}; Item: {1}", xlSetting, xlSetting.Attributes["name"].Value);
                                     }
-                                    else if (vAutoLogFunction.Logger.IsPassword.GetOrAdd(xlSetting.Attributes["name"].Value, false))
+                                    else if (logger.IsPassword.GetOrAdd(xlSetting.Attributes["name"].Value, false))
                                     {
                                         xlSetting.Attributes["value"].InnerText = LoggerUtility.StringMaskPassword(xlSetting.Attributes["name"].Value, xlSetting.Attributes["value"].InnerText, maskvalue);
                                     }
                                     else
                                     {
-                                        if (vAutoLogFunction.Logger.IsPassword.Keys.Any(x => xlSetting.Attributes["key"].Value.ToLower().Contains(x.ToLower())))
+                                        if (logger.IsPassword.Keys.Any(x => xlSetting.Attributes["key"].Value.ToLower().Contains(x.ToLower())))
                                         {
-                                            var passwords = vAutoLogFunction.Logger.IsPassword.Keys.Where(x => xlSetting.Attributes["key"].Value.ToLower().Contains(x.ToLower()));
+                                            var passwords = logger.IsPassword.Keys.Where(x => xlSetting.Attributes["key"].Value.ToLower().Contains(x.ToLower()));
                                             foreach (string password in passwords)
                                             {
-                                                if (vAutoLogFunction.Logger.IsPassword.GetOrAdd(password, false))
+                                                if (logger.IsPassword.GetOrAdd(password, false))
                                                     xlSetting.Attributes["value"].InnerText = LoggerUtility.StringMaskPassword(xlSetting.Attributes["name"].Value, xlSetting.Attributes["value"].InnerText, maskvalue);
                                             }
                                         }
@@ -1580,7 +1268,7 @@ namespace AdvancedLogging.BusinessLogic
                                     {
                                         if (xlSetting.Attributes["value"].InnerText.StartsWith("#{"))
                                         {
-                                            commonLogger.ErrorFormat("", xlSetting.Attributes["key"].Value, xlSetting.Attributes["value"].InnerText);
+                                            logger.ErrorFormat("", xlSetting.Attributes["key"].Value, xlSetting.Attributes["value"].InnerText);
                                         }
                                         else
                                         {
@@ -1591,7 +1279,7 @@ namespace AdvancedLogging.BusinessLogic
                                     {
                                         if (xlSetting.Attributes["value"].InnerText.StartsWith("#{"))
                                         {
-                                            commonLogger.ErrorFormat("", xlSetting.Attributes["key"].Value, xlSetting.Attributes["value"].InnerText);
+                                            logger.ErrorFormat("", xlSetting.Attributes["key"].Value, xlSetting.Attributes["value"].InnerText);
                                         }
                                         else
                                         {
@@ -1600,18 +1288,18 @@ namespace AdvancedLogging.BusinessLogic
                                     }
                                     vAutoLogFunction.WriteLogFormat("RedactConfigFile: Sanitizing: Section: {0}; Item: {1}", xlSetting, xlSetting.Attributes["key"].Value);
                                 }
-                                else if (vAutoLogFunction.Logger.IsPassword.GetOrAdd(xlSetting.Attributes["key"].Value, false))
+                                else if (logger.IsPassword.GetOrAdd(xlSetting.Attributes["key"].Value, false))
                                 {
                                     xlSetting.Attributes["value"].InnerText = LoggerUtility.StringMaskPassword(xlSetting.Attributes["key"].Value, xlSetting.Attributes["value"].InnerText, maskvalue);
                                 }
                                 else
                                 {
-                                    if (vAutoLogFunction.Logger.IsPassword.Keys.Any(x => xlSetting.Attributes["key"].Value.ToLower().Contains(x.ToLower())))
+                                    if (logger.IsPassword.Keys.Any(x => xlSetting.Attributes["key"].Value.ToLower().Contains(x.ToLower())))
                                     {
-                                        var passwords = vAutoLogFunction.Logger.IsPassword.Keys.Where(x => xlSetting.Attributes["key"].Value.ToLower().Contains(x.ToLower()));
+                                        var passwords = logger.IsPassword.Keys.Where(x => xlSetting.Attributes["key"].Value.ToLower().Contains(x.ToLower()));
                                         foreach (string password in passwords)
                                         {
-                                            if (vAutoLogFunction.Logger.IsPassword.GetOrAdd(password, false))
+                                            if (logger.IsPassword.GetOrAdd(password, false))
                                                 xlSetting.Attributes["value"].InnerText = LoggerUtility.StringMaskPassword(xlSetting.Attributes["key"].Value, xlSetting.Attributes["value"].InnerText, maskvalue);
                                         }
                                     }
@@ -1624,30 +1312,25 @@ namespace AdvancedLogging.BusinessLogic
                 }
                 catch (Exception exOuter)
                 {
-                    vAutoLogFunction.LogFunction(new { xmlConfig, commonLogger, maskvalue, purge }, System.Reflection.MethodBase.GetCurrentMethod(), true, exOuter);
+                    vAutoLogFunction.LogFunction(new { xmlConfig, maskvalue, purge }, System.Reflection.MethodBase.GetCurrentMethod(), true, exOuter);
                     throw;
                 }
             }
         }
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="szConfigFile"></param>
-        /// <param name="Log"></param>
-        /// <returns></returns>
-        public static string RedactConfigFile(string szConfigFile, ICommonLogger Log, string maskvalue = "********", bool purge = false)
+
+        public static string RedactConfigFile(ICommonLogger logger, ILoggingContext loggingContext, string szConfigFile, string maskvalue = "********", bool purge = false)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { szConfigFile, Log, maskvalue, purge }))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { szConfigFile, maskvalue, purge }))
             {
                 try
                 {
                     XmlDocument xlConfig = new XmlDocument();
                     xlConfig.Load(szConfigFile);
-                    return RedactConfigFileContents(xlConfig, Log, maskvalue, purge);
+                    return RedactConfigFileContents(logger, loggingContext, xlConfig, maskvalue, purge);
                 }
                 catch (Exception exOuter)
                 {
-                    vAutoLogFunction.LogFunction(new { szConfigFile, Log, maskvalue, purge }, System.Reflection.MethodBase.GetCurrentMethod(), true, exOuter);
+                    vAutoLogFunction.LogFunction(new { szConfigFile, maskvalue, purge }, System.Reflection.MethodBase.GetCurrentMethod(), true, exOuter);
                     throw;
                 }
             }

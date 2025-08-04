@@ -1,5 +1,6 @@
 using AdvancedLogging.Interfaces;
 using AdvancedLogging.Logging;
+using AdvancedLogging.Logging.Interfaces;
 using System;
 using System.Reflection;
 
@@ -10,6 +11,15 @@ namespace AdvancedLogging.BusinessLogic
     /// </summary>
     public class AssemblyHelper : IAssemblyHelper
     {
+        private readonly ICommonLogger _logger;
+        private readonly ILoggingContext _loggingContext;
+
+        public AssemblyHelper(ICommonLogger logger, ILoggingContext loggingContext)
+        {
+            _logger = logger;
+            _loggingContext = loggingContext;
+        }
+
         /// <summary>
         /// Gets the formatted version string of the specified assembly.
         /// </summary>
@@ -18,7 +28,7 @@ namespace AdvancedLogging.BusinessLogic
         public string GetFormattedVersion(Assembly assembly)
         {
             // Using AutoLogFunction to automatically log the function execution
-            using (var vAutoLogFunction = new AutoLogFunction(new { assembly }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { assembly }))
             {
                 try
                 {

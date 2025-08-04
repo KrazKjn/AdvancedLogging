@@ -1,5 +1,6 @@
 using AdvancedLogging.Interfaces;
 using AdvancedLogging.Logging;
+using AdvancedLogging.Logging.Interfaces;
 using AdvancedLogging.Models;
 using Microsoft.Win32;
 using System;
@@ -15,19 +16,28 @@ namespace AdvancedLogging.BusinessLogic
     public class CurrentServiceController : ICurrentServiceController
     {
         private readonly ServiceController _serviceController;
+        private readonly ICommonLogger _logger;
+        private readonly ILoggingContext _loggingContext;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CurrentServiceController"/> class.
         /// </summary>
-        public CurrentServiceController() { }
+        public CurrentServiceController(ICommonLogger logger, ILoggingContext loggingContext)
+        {
+            _logger = logger;
+            _loggingContext = loggingContext;
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CurrentServiceController"/> class with the specified service controller.
         /// </summary>
         /// <param name="serviceController">The service controller to use.</param>
-        public CurrentServiceController(ServiceController serviceController)
+        public CurrentServiceController(ICommonLogger logger, ILoggingContext loggingContext, ServiceController serviceController)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { serviceController }))
+            _logger = logger;
+            _loggingContext = loggingContext;
+
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { serviceController }))
             {
                 try
                 {
@@ -76,7 +86,7 @@ namespace AdvancedLogging.BusinessLogic
                 }
                 catch (Exception ex)
                 {
-                    if (ApplicationSettings.LogToDebugWindow)
+                    if (LoggingUtils.ShouldLogToDebugWindow(_logger))
                         Debug.WriteLine(ex.Message);
                     throw;
                 }
@@ -93,7 +103,7 @@ namespace AdvancedLogging.BusinessLogic
                 }
                 catch (Exception ex)
                 {
-                    if (ApplicationSettings.LogToDebugWindow)
+                    if (LoggingUtils.ShouldLogToDebugWindow(_logger))
                         Debug.WriteLine(ex.Message);
                     throw;
                 }
@@ -122,7 +132,7 @@ namespace AdvancedLogging.BusinessLogic
                 }
                 catch (Exception ex)
                 {
-                    if (ApplicationSettings.LogToDebugWindow)
+                    if (LoggingUtils.ShouldLogToDebugWindow(_logger))
                         Debug.WriteLine(ex.Message);
                     throw;
                 }
@@ -139,7 +149,7 @@ namespace AdvancedLogging.BusinessLogic
                 }
                 catch (Exception ex)
                 {
-                    if (ApplicationSettings.LogToDebugWindow)
+                    if (LoggingUtils.ShouldLogToDebugWindow(_logger))
                         Debug.WriteLine(ex.Message);
                     throw;
                 }
@@ -163,7 +173,7 @@ namespace AdvancedLogging.BusinessLogic
                 }
                 catch (Exception ex)
                 {
-                    if (ApplicationSettings.LogToDebugWindow)
+                    if (LoggingUtils.ShouldLogToDebugWindow(_logger))
                         Debug.WriteLine(ex.Message);
                     throw;
                 }
@@ -180,7 +190,7 @@ namespace AdvancedLogging.BusinessLogic
                 }
                 catch (Exception ex)
                 {
-                    if (ApplicationSettings.LogToDebugWindow)
+                    if (LoggingUtils.ShouldLogToDebugWindow(_logger))
                         Debug.WriteLine(ex.Message);
                     throw;
                 }
@@ -193,14 +203,14 @@ namespace AdvancedLogging.BusinessLogic
         /// <returns>An array of <see cref="ICurrentServiceController"/> representing the current services.</returns>
         public ICurrentServiceController[] GetCurrentServices()
         {
-            using (var vAutoLogFunction = new AutoLogFunction())
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { }))
             {
                 try
                 {
                     var serviceControllers = new List<ICurrentServiceController>();
                     foreach (var currentController in ServiceController.GetServices())
                     {
-                        serviceControllers.Add(new CurrentServiceController(currentController));
+                        serviceControllers.Add(new CurrentServiceController(_logger, _loggingContext, currentController));
                     }
                     return serviceControllers.ToArray();
                 }
@@ -218,7 +228,7 @@ namespace AdvancedLogging.BusinessLogic
         /// <param name="command">The command to execute.</param>
         public void ExecuteCommand(int command)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { command }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { command }))
             {
                 try
                 {

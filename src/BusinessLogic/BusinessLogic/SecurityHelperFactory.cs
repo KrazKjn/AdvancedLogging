@@ -1,5 +1,6 @@
 using AdvancedLogging.Interfaces;
 using AdvancedLogging.Logging;
+using AdvancedLogging.Logging.Interfaces;
 using System;
 
 namespace AdvancedLogging.BusinessLogic
@@ -10,14 +11,19 @@ namespace AdvancedLogging.BusinessLogic
     public class SecurityHelperFactory : ISecurityHelperFactory
     {
         private readonly ISecurityHelperDataAccess dal;
+        private readonly ICommonLogger _logger;
+        private readonly ILoggingContext _loggingContext;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SecurityHelperFactory"/> class.
         /// </summary>
         /// <param name="dalInterface">The data access layer interface for security helper.</param>
-        public SecurityHelperFactory(ISecurityHelperDataAccess dalInterface)
+        public SecurityHelperFactory(ICommonLogger logger, ILoggingContext loggingContext, ISecurityHelperDataAccess dalInterface)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { dalInterface }))
+            _logger = logger;
+            _loggingContext = loggingContext;
+
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { dalInterface }))
             {
                 try
                 {
@@ -38,11 +44,11 @@ namespace AdvancedLogging.BusinessLogic
         /// <returns>An instance of ISecurityHelper.</returns>
         public ISecurityHelper CreateSecurityHelper(string userName)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { userName }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { userName }))
             {
                 try
                 {
-                    return new SecurityHelper(userName, dal);
+                    return new SecurityHelper(_logger, _loggingContext, userName, dal);
                 }
                 catch (Exception exOuter)
                 {
@@ -59,11 +65,11 @@ namespace AdvancedLogging.BusinessLogic
         /// <returns>An instance of ISecurityHelper.</returns>
         public ISecurityHelper CreateSecurityHelper(Int64 secPrimaryId)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { secPrimaryId }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { secPrimaryId }))
             {
                 try
                 {
-                    return new SecurityHelper(secPrimaryId, dal);
+                    return new SecurityHelper(_logger, _loggingContext, secPrimaryId, dal);
                 }
                 catch (Exception exOuter)
                 {

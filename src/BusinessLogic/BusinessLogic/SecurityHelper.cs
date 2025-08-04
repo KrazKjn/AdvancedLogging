@@ -1,6 +1,7 @@
 using AdvancedLogging.Enumerations;
 using AdvancedLogging.Interfaces;
 using AdvancedLogging.Logging;
+using AdvancedLogging.Logging.Interfaces;
 using AdvancedLogging.Models;
 using System;
 using System.Security.Cryptography;
@@ -16,15 +17,20 @@ namespace AdvancedLogging.BusinessLogic
         private readonly string userName;
         private readonly ISecurityHelperDataAccess dal;
         private SecurityHelperInfo securityInfo;
+        private readonly ICommonLogger _logger;
+        private readonly ILoggingContext _loggingContext;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SecurityHelper"/> class using a username.
         /// </summary>
         /// <param name="user">The username.</param>
         /// <param name="dalInterface">The data access layer interface.</param>
-        public SecurityHelper(string user, ISecurityHelperDataAccess dalInterface)
+        public SecurityHelper(ICommonLogger logger, ILoggingContext loggingContext, string user, ISecurityHelperDataAccess dalInterface)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { user, dalInterface }))
+            _logger = logger;
+            _loggingContext = loggingContext;
+
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { user, dalInterface }))
             {
                 try
                 {
@@ -45,9 +51,12 @@ namespace AdvancedLogging.BusinessLogic
         /// </summary>
         /// <param name="secPrimaryId">The security primary ID.</param>
         /// <param name="dalInterface">The data access layer interface.</param>
-        public SecurityHelper(long secPrimaryId, ISecurityHelperDataAccess dalInterface)
+        public SecurityHelper(ICommonLogger logger, ILoggingContext loggingContext, long secPrimaryId, ISecurityHelperDataAccess dalInterface)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { secPrimaryId, dalInterface }))
+            _logger = logger;
+            _loggingContext = loggingContext;
+
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { secPrimaryId, dalInterface }))
             {
                 try
                 {
@@ -69,7 +78,7 @@ namespace AdvancedLogging.BusinessLogic
         /// <returns>The encrypted password.</returns>
         private string EncryptToUnsecure(string newPassword)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { newPassword }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { newPassword }))
             {
                 try
                 {
@@ -117,7 +126,7 @@ namespace AdvancedLogging.BusinessLogic
         /// <returns>The encrypted password.</returns>
         private string EncryptToSHA256(string newPassword)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { newPassword }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { newPassword }))
             {
                 try
                 {
@@ -143,7 +152,7 @@ namespace AdvancedLogging.BusinessLogic
         /// <returns>The encrypted password.</returns>
         private string EncryptToSHA512(string newPassword)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { newPassword }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { newPassword }))
             {
                 try
                 {
@@ -170,7 +179,7 @@ namespace AdvancedLogging.BusinessLogic
         /// <returns>The hashed password.</returns>
         private string PlainTextToHashed(string plainTextPassword, HashType hashToUse)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { plainTextPassword, hashToUse }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { plainTextPassword, hashToUse }))
             {
                 try
                 {
@@ -207,7 +216,7 @@ namespace AdvancedLogging.BusinessLogic
         /// <param name="plainTextPassword">The plain text password to save.</param>
         public void SavePassword(string plainTextPassword)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { plainTextPassword }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { plainTextPassword }))
             {
                 try
                 {
@@ -229,7 +238,7 @@ namespace AdvancedLogging.BusinessLogic
         /// <returns><c>true</c> if the password is correct; otherwise, <c>false</c>.</returns>
         public bool IsPasswordCorrect(string plainTextPassword)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { plainTextPassword }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { plainTextPassword }))
             {
                 try
                 {

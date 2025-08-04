@@ -1,5 +1,6 @@
 using AdvancedLogging.Interfaces;
 using AdvancedLogging.Logging;
+using AdvancedLogging.Logging.Interfaces;
 using AdvancedLogging.Models;
 using AdvancedLogging.Utilities;
 using System;
@@ -17,35 +18,19 @@ namespace AdvancedLogging.BusinessLogic.Interfaces
 
         private readonly IVersionInfo _versionDataAccess;
         private readonly IAssemblyHelper _assemblyHelper;
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="VersionInfoManager"/> class.
-        /// </summary>
-        public VersionInfoManager()
-        {
-            using (var vAutoLogFunction = new AutoLogFunction())
-            {
-                try
-                {
-                    _versionDataAccess = new VersionInfo();
-                    _assemblyHelper = new AssemblyHelper();
-                }
-                catch (Exception exOuter)
-                {
-                    vAutoLogFunction.LogFunction(System.Reflection.MethodBase.GetCurrentMethod(), true, exOuter);
-                    throw;
-                }
-            }
-        }
+        private readonly ICommonLogger _logger;
+        private readonly ILoggingContext _loggingContext;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="VersionInfoManager"/> class for dependency injection.
         /// </summary>
         /// <param name="infoDal">The data access layer for version information.</param>
         /// <param name="assemblyHelper">The helper for assembly operations.</param>
-        public VersionInfoManager(IVersionInfo infoDal, IAssemblyHelper assemblyHelper)
+        public VersionInfoManager(ICommonLogger logger, ILoggingContext loggingContext, IVersionInfo infoDal, IAssemblyHelper assemblyHelper)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { infoDal, assemblyHelper }))
+            _logger = logger;
+            _loggingContext = loggingContext;
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { infoDal, assemblyHelper }))
             {
                 try
                 {
@@ -68,7 +53,7 @@ namespace AdvancedLogging.BusinessLogic.Interfaces
         /// <returns>The version details.</returns>
         public VersionDetails GetVersionDetails(Assembly assembly, string dbConnectionString)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { assembly, dbConnectionString }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { assembly, dbConnectionString }))
             {
                 try
                 {
@@ -93,7 +78,7 @@ namespace AdvancedLogging.BusinessLogic.Interfaces
         /// <returns>The version details.</returns>
         public VersionDetails GetVersionDetails(Assembly assembly, SqlConnectionStringBuilder connectionString = null)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { assembly, connectionString }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { assembly, connectionString }))
             {
                 try
                 {
@@ -122,7 +107,7 @@ namespace AdvancedLogging.BusinessLogic.Interfaces
         /// <returns>The version details.</returns>
         public VersionDetails GetVersionDetails(Assembly assembly)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { assembly }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { assembly }))
             {
                 try
                 {

@@ -1,5 +1,7 @@
 using AdvancedLogging.Enumerations;
+using AdvancedLogging.Interfaces;
 using AdvancedLogging.Logging;
+using AdvancedLogging.Logging.Interfaces;
 using AdvancedLogging.Utilities;
 using System;
 using System.IO;
@@ -16,6 +18,9 @@ namespace AdvancedLogging.Services
         // Indicates whether to log the SOAP body.
         public bool m_bLogSoapBody = false;
 
+        private readonly ICommonLogger _logger;
+        private readonly ILoggingContext _loggingContext;
+
         /// <summary>
         /// Gets or sets a value indicating whether to log the SOAP body.
         /// </summary>
@@ -29,9 +34,12 @@ namespace AdvancedLogging.Services
         /// Initializes a new instance of the <see cref="WebServiceBase"/> class.
         /// Sets up security protocols.
         /// </summary>
-        public WebServiceBase()
+        public WebServiceBase(ICommonLogger logger, ILoggingContext loggingContext)
         {
-            using (var vAutoLogFunction = new AutoLogFunction())
+            _logger = logger;
+            _loggingContext = loggingContext;
+
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { }))
             {
                 try
                 {
@@ -51,7 +59,7 @@ namespace AdvancedLogging.Services
         /// </summary>
         public void Application_BeginRequest(Object Sender, EventArgs e)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { Sender, e }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { Sender, e }))
             {
                 try
                 {

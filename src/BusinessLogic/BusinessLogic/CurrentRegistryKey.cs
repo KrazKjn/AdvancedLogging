@@ -1,5 +1,6 @@
 using AdvancedLogging.Interfaces;
 using AdvancedLogging.Logging;
+using AdvancedLogging.Logging.Interfaces;
 using Microsoft.Win32;
 using System;
 using System.Security.AccessControl;
@@ -12,19 +13,28 @@ namespace AdvancedLogging.BusinessLogic
     public class CurrentRegistryKey : IRegistryKey, IDisposable
     {
         private readonly RegistryKey _registryKey;
+        private readonly ICommonLogger _logger;
+        private readonly ILoggingContext _loggingContext;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CurrentRegistryKey"/> class.
         /// </summary>
-        public CurrentRegistryKey() { }
+        public CurrentRegistryKey(ICommonLogger logger, ILoggingContext loggingContext)
+        {
+            _logger = logger;
+            _loggingContext = loggingContext;
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CurrentRegistryKey"/> class with the specified registry key.
         /// </summary>
         /// <param name="registryKey">The registry key to wrap.</param>
-        public CurrentRegistryKey(RegistryKey registryKey)
+        public CurrentRegistryKey(ICommonLogger logger, ILoggingContext loggingContext, RegistryKey registryKey)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { registryKey }))
+            _logger = logger;
+            _loggingContext = loggingContext;
+
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { registryKey }))
             {
                 try
                 {
@@ -46,12 +56,12 @@ namespace AdvancedLogging.BusinessLogic
         /// <returns>A <see cref="IRegistryKey"/> representing the subkey.</returns>
         public IRegistryKey CreateSubKey(string name, RegistryKeyPermissionCheck permissionCheck)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { name, permissionCheck }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { name, permissionCheck }))
             {
                 try
                 {
                     var registryKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64).CreateSubKey(name, permissionCheck);
-                    return new CurrentRegistryKey(registryKey);
+                    return new CurrentRegistryKey(_logger, _loggingContext, registryKey);
                 }
                 catch (Exception exOuter)
                 {
@@ -70,12 +80,12 @@ namespace AdvancedLogging.BusinessLogic
         /// <returns>A <see cref="IRegistryKey"/> representing the subkey.</returns>
         public IRegistryKey CreateSubKey(string name, RegistryKeyPermissionCheck permissionCheck, RegistrySecurity registrySecurity)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { name, permissionCheck, registrySecurity }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { name, permissionCheck, registrySecurity }))
             {
                 try
                 {
                     var registryKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64).CreateSubKey(name, permissionCheck, registrySecurity);
-                    return new CurrentRegistryKey(registryKey);
+                    return new CurrentRegistryKey(_logger, _loggingContext, registryKey);
                 }
                 catch (Exception exOuter)
                 {
@@ -93,12 +103,12 @@ namespace AdvancedLogging.BusinessLogic
         /// <returns>A <see cref="IRegistryKey"/> representing the subkey.</returns>
         public IRegistryKey OpenSubKey(string name, RegistryKeyPermissionCheck permissionCheck)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { name, permissionCheck }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { name, permissionCheck }))
             {
                 try
                 {
                     var tempRegistryKey = Registry.LocalMachine.OpenSubKey(name, permissionCheck);
-                    return new CurrentRegistryKey(tempRegistryKey);
+                    return new CurrentRegistryKey(_logger, _loggingContext, tempRegistryKey);
                 }
                 catch (Exception exOuter)
                 {
@@ -115,7 +125,7 @@ namespace AdvancedLogging.BusinessLogic
         /// <param name="value">The value to set.</param>
         public void SetValue(string name, string value)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { name, value }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { name, value }))
             {
                 try
                 {
@@ -136,7 +146,7 @@ namespace AdvancedLogging.BusinessLogic
         /// <param name="value">The value to set.</param>
         public void SetValue(string name, double value)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { name, value }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { name, value }))
             {
                 try
                 {
@@ -158,7 +168,7 @@ namespace AdvancedLogging.BusinessLogic
         /// <param name="registryValueKind">The registry data type to use when storing the data.</param>
         public void SetValue(string name, double value, RegistryValueKind registryValueKind)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { name, value, registryValueKind }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { name, value, registryValueKind }))
             {
                 try
                 {
@@ -180,7 +190,7 @@ namespace AdvancedLogging.BusinessLogic
         /// <returns>The value associated with the specified name, or the default value if the name is not found.</returns>
         public string GetValue(string name, string value)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { name, value }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { name, value }))
             {
                 try
                 {
@@ -202,7 +212,7 @@ namespace AdvancedLogging.BusinessLogic
         /// <returns>The value associated with the specified name, or the default value if the name is not found.</returns>
         public double GetValue(string name, double value)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { name, value }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { name, value }))
             {
                 try
                 {
@@ -237,7 +247,7 @@ namespace AdvancedLogging.BusinessLogic
         /// <param name="throwOnMissingValue">true to throw an exception if the value does not exist; otherwise, false.</param>
         public void DeleteValue(string name, bool throwOnMissingValue)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { name, throwOnMissingValue }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { name, throwOnMissingValue }))
             {
                 try
                 {
@@ -257,7 +267,7 @@ namespace AdvancedLogging.BusinessLogic
         /// <returns>A <see cref="RegistrySecurity"/> object that describes the access control permissions on the registry key.</returns>
         public RegistrySecurity GetAccessControl()
         {
-            using (var vAutoLogFunction = new AutoLogFunction())
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { }))
             {
                 try
                 {
@@ -276,7 +286,7 @@ namespace AdvancedLogging.BusinessLogic
         /// </summary>
         public void Close()
         {
-            using (var vAutoLogFunction = new AutoLogFunction())
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { }))
             {
                 try
                 {
