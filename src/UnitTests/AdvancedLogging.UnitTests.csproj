@@ -36,6 +36,14 @@
   <ItemGroup>
     <ProjectReference Include="..\BusinessEntities\AdvancedLogging.BusinessEntities.csproj" />
     <ProjectReference Include="..\BusinessLogic\AdvancedLogging.BusinessLogic.csproj" />
+    <ProjectReference Include="..\DataAccess\AdvancedLogging.DataAccess.csproj" />
+    <ProjectReference Include="..\AutoCoder\AdvancedLogging.AutoCoder.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Data.SqlClient">
+      <HintPath>..\..\..\..\..\..\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App\6.0.25\System.Data.SqlClient.dll</HintPath>
+    </Reference>
   </ItemGroup>
   
   <ItemGroup>
