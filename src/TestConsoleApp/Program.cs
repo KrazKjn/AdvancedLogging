@@ -16,6 +16,7 @@ using System.Net;
 using System.Net.Http;
 using System.Reflection;
 using System.Windows.Forms;
+using AdvancedLogging.AutoCoder;
 
 namespace AdvancedLogging.TestConsoleApp
 {
@@ -185,11 +186,89 @@ namespace AdvancedLogging.TestConsoleApp
                         TestParameters(null, 1, "Test");
                     }
                     catch { }
+
+                    try
+                    {
+                        vAutoLogFunction.WriteLog("Testing: Retry Logic ...");
+                        TestRetryLogic();
+                    }
+                    catch { }
+
+                    try
+                    {
+                        vAutoLogFunction.WriteLog("Testing: AutoCoder ...");
+                        TestAutoCoder();
+                    }
+                    catch { }
                 }
                 catch (Exception exOuter)
                 {
                     vAutoLogFunction.LogFunction(MethodBase.GetCurrentMethod(), true, exOuter);
                     throw;
+                }
+            }
+        }
+
+        private static void TestRetryLogic()
+        {
+            using (var vAutoLogFunction = new AutoLogFunction())
+            {
+                try
+                {
+                    var httpClient = new HttpClient();
+                    httpClient.Timeout = TimeSpan.FromSeconds(2);
+                    var response = httpClient.GetAsync("http://localhost:12345/api/nonexistent", 3, 1000).Result;
+                }
+                catch (Exception ex)
+                {
+                    vAutoLogFunction.WriteError("Caught expected exception after retries", ex);
+                }
+            }
+        }
+
+        private static void TestAutoCoder()
+        {
+            using (var vAutoLogFunction = new AutoLogFunction())
+            {
+                try
+                {
+                    string testFile = "TestAutoCoder.cs";
+                    string fileContent = @"
+using System;
+public class TestAutoCoder
+{
+    public void MyMethod()
+    {
+        Console.WriteLine(""Hello"");
+    }
+}";
+                    File.WriteAllText(testFile, fileContent);
+
+                    var codeCSharp = new AutoCoder.CodeCSharp(
+                        new System.Collections.Specialized.StringCollection(),
+                        new List<string>(),
+                        new Dictionary<string, bool>(),
+                        new Dictionary<string, bool>(),
+                        ".",
+                        false
+                    );
+
+                    codeCSharp.ProcessFile(new FileInfo(testFile), AutoCoder.CodeItems.AutoLog | AutoCoder.CodeItems.TryCatch | AutoCoder.CodeItems.Method);
+
+                    string newContent = File.ReadAllText(testFile);
+                    if (newContent.Contains("vAutoLogFunction"))
+                    {
+                        vAutoLogFunction.WriteLog("AutoCoder test passed.");
+                    }
+                    else
+                    {
+                        vAutoLogFunction.WriteError("AutoCoder test failed.");
+                    }
+                    File.Delete(testFile);
+                }
+                catch (Exception ex)
+                {
+                    vAutoLogFunction.WriteError("Exception in TestAutoCoder", ex);
                 }
             }
         }

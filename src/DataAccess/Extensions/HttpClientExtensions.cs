@@ -1,6 +1,8 @@
 using AdvancedLogging.Constants;
 using AdvancedLogging.Logging;
 using AdvancedLogging.Utilities;
+using Polly;
+using Polly.Retry;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -11,64 +13,67 @@ using System.Threading.Tasks;
 namespace AdvancedLogging.Extensions
 {
     /// <summary>
-    /// HttpClient extensions adding retry functionality.
+    /// HttpClient extensions adding retry functionality using Polly.
     /// </summary>
     public static class HttpClientExtensions
     {
-        private static T ExecuteWithRetry<T>(this HttpClient httpClient, Func<HttpClient, T> action, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        private static async Task<T> ExecuteWithRetryAsync<T>(
+            this HttpClient httpClient,
+            Func<HttpClient, Task<T>> action,
+            int retries,
+            int retryWaitMS,
+            int autoTimeoutIncrement = 0) // autoTimeoutIncrement is no longer used but kept for signature compatibility.
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { httpClient, retries, retryWaitMS, autoTimeoutIncrement }))
+            using (var vAutoLogFunction = new AutoLogFunction(new { httpClient, retries, retryWaitMS }))
             {
-                try
+                // Note: autoTimeoutIncrement is not supported with Polly's default retry mechanism
+                // when using a shared HttpClient. A more advanced setup with Polly's TimeoutPolicy
+                // and CancellationToken would be needed. For now, we are simplifying the implementation.
+                if (autoTimeoutIncrement > 0)
                 {
-                    T result = default;
-                    bool success = true;
-                    for (int i = 0; i < (retries + 1); i++)
+                    vAutoLogFunction.WriteWarn("autoTimeoutIncrement is not supported in this version of ExecuteWithRetryAsync and will be ignored.");
+                }
+
+                var retryPolicy = Policy
+                    .Handle<HttpRequestException>()
+                    .Or<TaskCanceledException>() // Thrown on timeout
+                    .WaitAndRetryAsync(retries,
+                        attempt => TimeSpan.FromMilliseconds(retryWaitMS),
+                        (exception, timeSpan, attempt, context) =>
+                        {
+                            vAutoLogFunction.WriteWarn($"Retry {attempt} due to {exception.GetType().Name}: {exception.Message}. Waiting {timeSpan.TotalMilliseconds}ms before next retry.");
+                        });
+
+                return await retryPolicy.ExecuteAsync(async () =>
+                {
+                    var sw = Stopwatch.StartNew();
+                    try
                     {
-                        Stopwatch sw = null;
-                        int timeoutIncrement = 0;
-                        try
+                        T result = await action(httpClient);
+                        sw.Stop();
+
+                        if (result is HttpResponseMessage response)
                         {
-                            sw = new Stopwatch();
-                            sw?.Start();
-                            result = action(httpClient);
-                            ((Task<HttpResponseMessage>)(object)result).Wait();
-                            sw?.Stop();
-                            if (sw != null)
-                            {
-                                string responseUri = ((Task<HttpResponseMessage>)(object)result).Result.RequestMessage.RequestUri.ToString();
-                                LoggingUtils.ProcessStopWatch(ref sw, vAutoLogFunction, responseUri, LoggingUtils.DebugPrintLevel[ConfigurationSetting.Log_FunctionHeaderMethod]);
-                            }
-                            if (!success)
-                            {
-                                vAutoLogFunction.WriteLog($"{action.Method.Name}: Retry is Successful!");
-                            }
-                            return result;
+                            string responseUri = response.RequestMessage.RequestUri.ToString();
+                            LoggingUtils.ProcessStopWatch(ref sw, vAutoLogFunction, responseUri, LoggingUtils.DebugPrintLevel[ConfigurationSetting.Log_FunctionHeaderMethod]);
                         }
-                        catch (HttpRequestException ex)
+                        else
                         {
-                            ExtensionsFunctions.HandleException($"{action.Method.Name}", vAutoLogFunction, ex, i, retries, ref success, ref timeoutIncrement, autoTimeoutIncrement);
-                            httpClient = ExtensionsFunctions.CreateHttpClient(httpClient, vAutoLogFunction, ex.Message.Contains("timeout") ? timeoutIncrement : 0);
+                            LoggingUtils.ProcessStopWatch(ref sw, vAutoLogFunction, "", LoggingUtils.DebugPrintLevel[ConfigurationSetting.Log_FunctionHeaderMethod]);
                         }
-                        catch (Exception ex)
-                        {
-                            ExtensionsFunctions.HandleException($"{action.Method.Name}", vAutoLogFunction, ex, i, retries, ref success, ref timeoutIncrement, autoTimeoutIncrement);
-                            if (ex.InnerException?.Message == "A task was canceled.")
-                            {
-                                httpClient = ExtensionsFunctions.CreateHttpClient(httpClient, vAutoLogFunction, timeoutIncrement);
-                            }
-                        }
-                        ExtensionsFunctions.PerformRetryDelay($"{action.Method.Name}", vAutoLogFunction, retryWaitMS);
+
+                        return result;
                     }
-                    return result;
-                }
-                catch (Exception exOuter)
-                {
-                    vAutoLogFunction.LogFunction(new { httpClient, retries, retryWaitMS, autoTimeoutIncrement }, System.Reflection.MethodBase.GetCurrentMethod(), true, exOuter);
-                    throw;
-                }
+                    catch (Exception ex)
+                    {
+                        sw.Stop();
+                        vAutoLogFunction.WriteError("Exception during HTTP request", ex);
+                        throw; // Re-throw to allow Polly to handle it
+                    }
+                });
             }
         }
+
 
         /// <summary>
         /// Sends a DELETE request to the specified URI, retrying the request if it fails.
@@ -81,8 +86,7 @@ namespace AdvancedLogging.Extensions
         /// <returns>The HTTP response message.</returns>
         public static async Task<HttpResponseMessage> DeleteAsync(this HttpClient httpClient, string requestUri, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            // TODO: Fully Test! This is NOT fully Tested!
-            return await httpClient.ExecuteWithRetry(r => r.DeleteAsync(requestUri), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(r => r.DeleteAsync(requestUri), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
         /// <summary>
@@ -97,8 +101,7 @@ namespace AdvancedLogging.Extensions
         /// <returns>The HTTP response message.</returns>
         public static async Task<HttpResponseMessage> DeleteAsync(this HttpClient httpClient, Uri requestUri, CancellationToken cancellationToken, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            // TODO: Fully Test! This is NOT fully Tested!
-            return await httpClient.ExecuteWithRetry(r => r.DeleteAsync(requestUri, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(r => r.DeleteAsync(requestUri, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
         /// <summary>
@@ -114,8 +117,7 @@ namespace AdvancedLogging.Extensions
         /// <returns>The HTTP response message.</returns>
         public static async Task<HttpResponseMessage> GetAsync(this HttpClient httpClient, string requestUri, HttpCompletionOption completionOption, CancellationToken cancellationToken, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            // TODO: Fully Test! This is NOT fully Tested!
-            return await httpClient.ExecuteWithRetry(r => r.GetAsync(requestUri, completionOption, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(r => r.GetAsync(requestUri, completionOption, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
         /// <summary>
@@ -131,8 +133,7 @@ namespace AdvancedLogging.Extensions
         /// <returns>The HTTP response message.</returns>
         public static async Task<HttpResponseMessage> GetAsync(this HttpClient httpClient, Uri requestUri, HttpCompletionOption completionOption, CancellationToken cancellationToken, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            // TODO: Fully Test! This is NOT fully Tested!
-            return await httpClient.ExecuteWithRetry(r => r.GetAsync(requestUri, completionOption, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(r => r.GetAsync(requestUri, completionOption, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
         /// <summary>
@@ -147,8 +148,7 @@ namespace AdvancedLogging.Extensions
         /// <returns>The HTTP response message.</returns>
         public static async Task<HttpResponseMessage> GetAsync(this HttpClient httpClient, string requestUri, HttpCompletionOption completionOption, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            // TODO: Fully Test! This is NOT fully Tested!
-            return await httpClient.ExecuteWithRetry(r => r.GetAsync(requestUri, completionOption), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(r => r.GetAsync(requestUri, completionOption), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
         /// <summary>
@@ -162,7 +162,7 @@ namespace AdvancedLogging.Extensions
         /// <returns>The HTTP response message.</returns>
         public static async Task<HttpResponseMessage> GetAsync(this HttpClient httpClient, string requestUri, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            return await httpClient.ExecuteWithRetry(r => r.GetAsync(requestUri), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(r => r.GetAsync(requestUri), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
         /// <summary>
@@ -176,8 +176,7 @@ namespace AdvancedLogging.Extensions
         /// <returns>The byte[] response.</returns>
         public static async Task<byte[]> GetByteArrayAsync(this HttpClient httpClient, string requestUri, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            // TODO: Fully Test! This is NOT fully Tested!
-            return await httpClient.ExecuteWithRetry(r => r.GetByteArrayAsync(requestUri), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(r => r.GetByteArrayAsync(requestUri), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
         /// <summary>
@@ -191,8 +190,7 @@ namespace AdvancedLogging.Extensions
         /// <returns>The Stream response.</returns>
         public static async Task<Stream> GetStreamAsync(this HttpClient httpClient, Uri requestUri, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            // TODO: Fully Test! This is NOT fully Tested!
-            return await httpClient.ExecuteWithRetry(r => r.GetStreamAsync(requestUri), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(r => r.GetStreamAsync(requestUri), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
         /// <summary>
@@ -206,8 +204,7 @@ namespace AdvancedLogging.Extensions
         /// <returns>The string response.</returns>
         public static async Task<string> GetStringAsync(this HttpClient httpClient, string requestUri, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            // TODO: Fully Test! This is NOT fully Tested!
-            return await httpClient.ExecuteWithRetry(r => r.GetStringAsync(requestUri), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(r => r.GetStringAsync(requestUri), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
         /// <summary>
@@ -223,8 +220,7 @@ namespace AdvancedLogging.Extensions
         /// <returns>The HTTP response message.</returns>
         public static async Task<HttpResponseMessage> PostAsync(this HttpClient httpClient, string requestUri, HttpContent content, CancellationToken cancellationToken, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            // TODO: Fully Test! This is NOT fully Tested!
-            return await httpClient.ExecuteWithRetry(r => r.PostAsync(requestUri, content, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(r => r.PostAsync(requestUri, content, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
         /// <summary>
@@ -239,8 +235,7 @@ namespace AdvancedLogging.Extensions
         /// <returns>The HTTP response message.</returns>
         public static async Task<HttpResponseMessage> PostAsync(this HttpClient httpClient, Uri requestUri, HttpContent content, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            // TODO: Fully Test! This is NOT fully Tested!
-            return await httpClient.ExecuteWithRetry(r => r.PostAsync(requestUri, content), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(r => r.PostAsync(requestUri, content), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
         /// <summary>
@@ -256,8 +251,7 @@ namespace AdvancedLogging.Extensions
         /// <returns>The HTTP response message.</returns>
         public static async Task<HttpResponseMessage> PutAsync(this HttpClient httpClient, string requestUri, HttpContent content, CancellationToken cancellationToken, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            // TODO: Fully Test! This is NOT fully Tested!
-            return await httpClient.ExecuteWithRetry(r => r.PutAsync(requestUri, content, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(r => r.PutAsync(requestUri, content, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
         /// <summary>
@@ -273,8 +267,21 @@ namespace AdvancedLogging.Extensions
         /// <returns>The HTTP response message.</returns>
         public static async Task<HttpResponseMessage> PutAsync(this HttpClient httpClient, Uri requestUri, HttpContent content, CancellationToken cancellationToken, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            // TODO: Fully Test! This is NOT fully Tested!
-            return await httpClient.ExecuteWithRetry(r => r.PutAsync(requestUri, content, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(r => r.PutAsync(requestUri, content, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
+        }
+
+        /// <summary>
+        /// Sends an HTTP request to the specified URI with the specified content, retrying the request if it fails.
+        /// </summary>
+        /// <param name="httpClient">The HttpClient instance.</param>
+        /// <param name="request">The HTTP request message to send.</param>
+        /// <param name="retries">The number of times to retry the request if it fails.</param>
+        /// <param name="retryWaitMS">The wait time in milliseconds between retries.</param>
+        /// <param name="autoTimeoutIncrement">The increment value for the timeout in case of a timeout exception.</param>
+        /// <returns>The HTTP response message.</returns>
+        public static async Task<HttpResponseMessage> SendAsync(this HttpClient httpClient, HttpRequestMessage request, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
+        {
+            return await httpClient.ExecuteWithRetryAsync(r => r.SendAsync(request), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
         /// <summary>
@@ -287,25 +294,9 @@ namespace AdvancedLogging.Extensions
         /// <param name="retryWaitMS">The wait time in milliseconds between retries.</param>
         /// <param name="autoTimeoutIncrement">The increment value for the timeout in case of a timeout exception.</param>
         /// <returns>The HTTP response message.</returns>
-        public static async Task<HttpResponseMessage> SendAsync(this HttpClient httpClient, HttpRequestMessage request, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
-        {
-            // TODO: Fully Test! This is NOT fully Tested!
-            return await httpClient.ExecuteWithRetry(r => r.SendAsync(request), retries, retryWaitMS, autoTimeoutIncrement);
-        }
-
-        /// <summary>
-        /// Sends an HTTP request to the specified URI with the specified content, retrying the request if it fails.
-        /// </summary>
-        /// <param name="httpClient">The HttpClient instance.</param>
-        /// <param name="request">The HTTP request message to send.</param>
-        /// <param name="retries">The number of times to retry the request if it fails.</param>
-        /// <param name="retryWaitMS">The wait time in milliseconds between retries.</param>
-        /// <param name="autoTimeoutIncrement">The increment value for the timeout in case of a timeout exception.</param>
-        /// <returns>The HTTP response message.</returns>
         public static async Task<HttpResponseMessage> SendAsync(this HttpClient httpClient, HttpRequestMessage request, CancellationToken cancellationToken, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            // TODO: Fully Test! This is NOT fully Tested!
-            return await httpClient.ExecuteWithRetry(r => r.SendAsync(request, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(r => r.SendAsync(request, cancellationToken), retries, retryWaitMS, autoTimeoutIncrement);
         }
 
         /// <summary>
@@ -320,8 +311,7 @@ namespace AdvancedLogging.Extensions
         /// <returns>The HTTP response message.</returns>
         public static async Task<HttpResponseMessage> SendAsync(this HttpClient httpClient, HttpRequestMessage request, HttpCompletionOption completionOption, int retries, int retryWaitMS, int autoTimeoutIncrement = 0)
         {
-            // TODO: Fully Test! This is NOT fully Tested!
-            return await httpClient.ExecuteWithRetry(r => r.SendAsync(request, completionOption), retries, retryWaitMS, autoTimeoutIncrement);
+            return await httpClient.ExecuteWithRetryAsync(r => r.SendAsync(request, completionOption), retries, retryWaitMS, autoTimeoutIncrement);
         }
     }
 }

@@ -60,6 +60,9 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Reference Include="Polly, Version=8.2.0.0, Culture=neutral, PublicKeyToken=c8a3ffc3f8f825cc, processorArchitecture=MSIL">
+      <HintPath>..\packages\Polly.8.2.0\lib\net472\Polly.dll</HintPath>
+    </Reference>
     <Compile Include="DataAccess\Configurations\Configuration.cs" />
     <Compile Include="DataAccess\Configurations\ConfigurationFactory.cs" />
     <Compile Include="Models\WebClientExtended.cs">
