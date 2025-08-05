@@ -133,7 +133,7 @@ namespace AdvancedLogging.Loggers
         /// </summary>
         public CommonLogger()
         {
-            DynamicLoggingNotice = LoggingUtils.Logger?.MonitoredSettings.GetOrAdd(ConfigurationSetting.Log_DynamicLoggingNotice, DynamicLoggingNotice);
+            DynamicLoggingNotice = MonitoredSettings.GetOrAdd(ConfigurationSetting.Log_DynamicLoggingNotice, DynamicLoggingNotice);
         }
 
         #region Implementation of ILoggerWrapper
