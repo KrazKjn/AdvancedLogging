@@ -1499,7 +1499,7 @@ namespace AdvancedLogging.Loggers
                 catch (Exception ex)
                 {
                     // Log the exception if needed
-                    if (ShouldLogToDebugWindow())
+                    if (ShouldLogToDebugWindow(this))
                         System.Diagnostics.Debug.WriteLine(ex.Message);
                 }
             }
@@ -1641,7 +1641,7 @@ namespace AdvancedLogging.Loggers
                 catch (Exception ex)
                 {
                     // Log exceptions if required
-                    if (ShouldLogToDebugWindow())
+                    if (ShouldLogToDebugWindow(this))
                         System.Diagnostics.Debug.WriteLine(ex.Message);
                 }
             }
@@ -1678,7 +1678,7 @@ namespace AdvancedLogging.Loggers
             }
             catch (Exception ex)
             {
-                if (ShouldLogToDebugWindow())
+                if (ShouldLogToDebugWindow(this))
                     System.Diagnostics.Debug.WriteLine("ToLog: Error: " + ex.ToString());
                 Error("ToLog: Error: " + ex.ToString());
             }
@@ -1745,7 +1745,7 @@ namespace AdvancedLogging.Loggers
             }
             catch (Exception ex)
             {
-                if (ShouldLogToDebugWindow())
+                if (ShouldLogToDebugWindow(this))
                     System.Diagnostics.Debug.WriteLine("ToLog: Error: " + ex.ToString());
                 Error("ToLog: Error: " + ex.ToString());
             }
