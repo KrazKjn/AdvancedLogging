@@ -1,4 +1,6 @@
-﻿using AdvancedLogging.Logging;
+using AdvancedLogging.Interfaces;
+using AdvancedLogging.Logging;
+using AdvancedLogging.Logging.Interfaces;
 using System;
 using System.Diagnostics;
 
@@ -17,9 +19,9 @@ namespace AdvancedLogging.Extensions
         /// <param name="format">The format.</param>
         /// <param name="args">The args.</param>
         /// <returns>A string with the format placeholders replaced by the args.</returns>
-        public static string Sub(this string format, params object[] args)
+        public static string Sub(this string format, ICommonLogger logger, ILoggingContext loggingContext, params object[] args)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { format, args }, bSuppressFunctionDeclaration: true))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { format, args }, bSuppressFunctionDeclaration: true))
             {
                 try
                 {
@@ -38,9 +40,9 @@ namespace AdvancedLogging.Extensions
         /// </summary>
         /// <param name="text"></param>
         /// <returns> <c>true</c> if the specified text is numeric digits; otherwise, <c>false</c>.</returns>
-        public static bool IsNumericDigits(this string text)
+        public static bool IsNumericDigits(this string text, ICommonLogger logger, ILoggingContext loggingContext)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { text }, bSuppressFunctionDeclaration: true))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { text }, bSuppressFunctionDeclaration: true))
             {
                 try
                 {
@@ -62,9 +64,9 @@ namespace AdvancedLogging.Extensions
         /// </summary>
         /// <param name="_ErrorMessage"></param>
         /// <returns> <c>true</c> if the specified error allows for a retry; otherwise, <c>false</c>.</returns>
-        public static bool IsSqlRetryError(this string _ErrorMessage)
+        public static bool IsSqlRetryError(this string _ErrorMessage, ICommonLogger logger, ILoggingContext loggingContext)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { _ErrorMessage }, bSuppressFunctionDeclaration: true))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { _ErrorMessage }, bSuppressFunctionDeclaration: true))
             {
                 try
                 {
@@ -87,9 +89,9 @@ namespace AdvancedLogging.Extensions
         /// </summary>
         /// <param name="_ErrorMessage"></param>
         /// <returns> <c>true</c> if the specified error does not allow for a retry; otherwise, <c>false</c>.</returns>
-        public static bool IsSqlNonRetryError(this string _ErrorMessage)
+        public static bool IsSqlNonRetryError(this string _ErrorMessage, ICommonLogger logger, ILoggingContext loggingContext)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { _ErrorMessage }, bSuppressFunctionDeclaration: true))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { _ErrorMessage }, bSuppressFunctionDeclaration: true))
             {
                 try
                 {
