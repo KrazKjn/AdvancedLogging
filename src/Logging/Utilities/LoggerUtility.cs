@@ -2,6 +2,7 @@ using AdvancedLogging.Extensions;
 using AdvancedLogging.Logging;
 using AdvancedLogging.Interfaces;
 using log4net;
+using AdvancedLogging.Interfaces;
 using log4net.Appender;
 using log4net.Core;
 using System;
