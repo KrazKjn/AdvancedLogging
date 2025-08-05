@@ -82,7 +82,6 @@
     <Compile Include="Interfaces\IVersionInfo.cs" />
     <Compile Include="Interfaces\IWebClientExtended.cs" />
     <Compile Include="Interfaces\IWebClientExtendedFactory.cs" />
-    <Compile Include="Utilities\DataObjectDumper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Utilities\SqlDataReaderHelper.cs" />
     <Compile Include="Extensions\DataExtensions.cs" />

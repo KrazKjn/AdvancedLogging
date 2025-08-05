@@ -74,6 +74,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Utilities\RemotingLoggerUtility.cs" />
     <Compile Include="Utilities\ObjectDumper.cs" />
+    <Compile Include="Utilities\DataObjectDumper.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="AdvancedLogging.Logging.nuspec" />
