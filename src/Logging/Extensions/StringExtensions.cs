@@ -29,7 +29,7 @@ namespace AdvancedLogging.Extensions
                 }
                 catch (Exception exOuter)
                 {
-                    vAutoLogFunction.LogFunction(new { format, args }, System.Reflection.MethodBase.GetCurrentMethod(), true, exOuter);
+                    vAutoLogFunction.LogFunction(System.Reflection.MethodBase.GetCurrentMethod(), true, exOuter);
                     throw;
                 }
             }
@@ -53,7 +53,7 @@ namespace AdvancedLogging.Extensions
                 }
                 catch (Exception exOuter)
                 {
-                    vAutoLogFunction.LogFunction(new { text }, System.Reflection.MethodBase.GetCurrentMethod(), true, exOuter);
+                    vAutoLogFunction.LogFunction(System.Reflection.MethodBase.GetCurrentMethod(), true, exOuter);
                     throw;
                 }
             }
@@ -78,7 +78,7 @@ namespace AdvancedLogging.Extensions
                 }
                 catch (Exception exOuter)
                 {
-                    vAutoLogFunction.LogFunction(new { _ErrorMessage }, System.Reflection.MethodBase.GetCurrentMethod(), true, exOuter);
+                    vAutoLogFunction.LogFunction(System.Reflection.MethodBase.GetCurrentMethod(), true, exOuter);
                     throw;
                 }
             }
@@ -105,7 +105,7 @@ namespace AdvancedLogging.Extensions
                 }
                 catch (Exception exOuter)
                 {
-                    vAutoLogFunction.LogFunction(new { _ErrorMessage }, System.Reflection.MethodBase.GetCurrentMethod(), true, exOuter);
+                    vAutoLogFunction.LogFunction(System.Reflection.MethodBase.GetCurrentMethod(), true, exOuter);
                     throw;
                 }
             }
