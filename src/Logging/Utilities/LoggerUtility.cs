@@ -37,6 +37,7 @@ namespace AdvancedLogging.Utilities
     public class LoggerUtility : ILoggerUtility
     {
         private ICommonLogger logger;
+        private ILoggingContext loggingContext;
         private IDirectoryManager directoryManager;
         private int m_intMinutesAfterMidnight = 60;
         private int m_intDaysInterval = 1;
@@ -47,13 +48,14 @@ namespace AdvancedLogging.Utilities
         /// Constructor
         /// </summary>
 
-        public LoggerUtility(ICommonLogger commonLogger)
+        public LoggerUtility(ICommonLogger commonLogger, ILoggingContext loggingContext)
         {
-            using (var vAutoLogFunction = new AutoLogFunction())
+            using (var vAutoLogFunction = new AutoLogFunction(commonLogger, loggingContext))
             {
                 try
                 {
                     this.logger = commonLogger;
+                    this.loggingContext = loggingContext;
                     directoryManager = new DirectoryManager();
                 }
                 catch (Exception exOuter)
@@ -67,14 +69,16 @@ namespace AdvancedLogging.Utilities
         /// LoggerUtility instance
         /// </summary>
         /// <param name="_logger">Logger where should write</param>
+        /// <param name="_loggingContext">The logging context.</param>
         /// <param name="_directoryManager"> The log directory.</param>
-        public LoggerUtility(ICommonLogger _logger, IDirectoryManager _directoryManager)
+        public LoggerUtility(ICommonLogger _logger, ILoggingContext _loggingContext, IDirectoryManager _directoryManager)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { _logger, _directoryManager }))
+            using (var vAutoLogFunction = new AutoLogFunction(_logger, _loggingContext, new { _logger, _directoryManager }))
             {
                 try
                 {
                     logger = _logger;
+                    loggingContext = _loggingContext;
                     directoryManager = _directoryManager;
                 }
                 catch (Exception exOuter)
@@ -92,7 +96,7 @@ namespace AdvancedLogging.Utilities
             get { return m_bAutoCleanUpLogFiles; }
             set
             {
-                using (var vAutoLogFunction = new AutoLogFunction())
+                using (var vAutoLogFunction = new AutoLogFunction(this.logger, this.loggingContext))
                 {
                     m_bAutoCleanUpLogFiles = value;
                     vAutoLogFunction.WriteDebug("AutoCleanUpLogFiles = " + m_bAutoCleanUpLogFiles.ToString());
@@ -108,7 +112,7 @@ namespace AdvancedLogging.Utilities
             get { return m_intMinutesAfterMidnight; }
             set
             {
-                using (var vAutoLogFunction = new AutoLogFunction())
+                using (var vAutoLogFunction = new AutoLogFunction(this.logger, this.loggingContext))
                 {
                     m_intMinutesAfterMidnight = value;
                     vAutoLogFunction.WriteDebug("MinutesAfterMidnight = " + m_intMinutesAfterMidnight.ToString());
@@ -124,7 +128,7 @@ namespace AdvancedLogging.Utilities
             get { return m_intDaysInterval; }
             set
             {
-                using (var vAutoLogFunction = new AutoLogFunction())
+                using (var vAutoLogFunction = new AutoLogFunction(this.logger, this.loggingContext))
                 {
                     m_intDaysInterval = value;
                     vAutoLogFunction.WriteDebug("DaysInterval = " + m_intDaysInterval.ToString());
@@ -156,7 +160,7 @@ namespace AdvancedLogging.Utilities
         /// </summary>
         public virtual void InitializeLogMonitor()
         {
-            using (var vAutoLogFunction = new AutoLogFunction())
+            using (var vAutoLogFunction = new AutoLogFunction(this.logger, this.loggingContext))
             {
                 try
                 {
@@ -176,7 +180,7 @@ namespace AdvancedLogging.Utilities
         /// <param name="e"></param>
         private void TimerDateChange_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { sender, e }))
+            using (var vAutoLogFunction = new AutoLogFunction(this.logger, this.loggingContext, new { sender, e }))
             {
                 try
                 {
@@ -200,7 +204,7 @@ namespace AdvancedLogging.Utilities
         /// </summary>
         private void SetDateChangeTimer(bool bLogItems = true)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { bLogItems }))
+            using (var vAutoLogFunction = new AutoLogFunction(this.logger, this.loggingContext, new { bLogItems }))
             {
                 try
                 {
@@ -243,7 +247,7 @@ namespace AdvancedLogging.Utilities
         /// </summary>
         public virtual void CleanUp()
         {
-            using (var vAutoLogFunction = new AutoLogFunction())
+            using (var vAutoLogFunction = new AutoLogFunction(this.logger, this.loggingContext))
             {
                 try
                 {
@@ -320,7 +324,7 @@ namespace AdvancedLogging.Utilities
         /// <param name="date">Anything prior will not be kept.</param>
         public virtual void CleanUp(string logDirectory, string logPrefix, DateTime date)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { logDirectory, logPrefix, date }))
+            using (var vAutoLogFunction = new AutoLogFunction(this.logger, this.loggingContext, new { logDirectory, logPrefix, date }))
             {
                 try
                 {
@@ -378,7 +382,7 @@ namespace AdvancedLogging.Utilities
         /// <param name="stringToClean">Connection String</param>
         public virtual string StringRemovePassword(string stringToClean)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { stringToClean }))
+            using (var vAutoLogFunction = new AutoLogFunction(this.logger, this.loggingContext, new { stringToClean }))
             {
                 try
                 {
@@ -410,9 +414,9 @@ namespace AdvancedLogging.Utilities
         /// </summary>
         /// <param name="stringToClean"></param>
         /// <returns></returns>
-        public static string StringRemovePasswordStatic(string stringToClean)
+        public static string StringRemovePasswordStatic(ICommonLogger logger, ILoggingContext loggingContext, string stringToClean)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { stringToClean }))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { stringToClean }))
             {
                 try
                 {
@@ -445,9 +449,9 @@ namespace AdvancedLogging.Utilities
         /// <param name="str">Connection String</param>
         /// <param name="maskvalue">Default ********</param>
         /// <returns></returns>
-        public static string StringMaskPassword(string name, string str, string maskvalue = "********")
+        public static string StringMaskPassword(ICommonLogger logger, ILoggingContext loggingContext, string name, string str, string maskvalue = "********")
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { str, maskvalue }, bSuppressFunctionDeclaration: true))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { str, maskvalue }, bSuppressFunctionDeclaration: true))
             {
                 try
                 {
@@ -495,7 +499,7 @@ namespace AdvancedLogging.Utilities
 
         Level ILoggerUtility.GetThresholdFromString(string thesholdString)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { thesholdString }))
+            using (var vAutoLogFunction = new AutoLogFunction(this.logger, this.loggingContext, new { thesholdString }))
             {
                 try
                 {
@@ -545,7 +549,7 @@ namespace AdvancedLogging.Utilities
         /// <param name="level"></param>
         public void ToggleLogging(log4net.Core.Level level)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { level }))
+            using (var vAutoLogFunction = new AutoLogFunction(this.logger, this.loggingContext, new { level }))
             {
                 try
                 {
@@ -579,9 +583,9 @@ namespace AdvancedLogging.Utilities
         /// Toggle all appenders to this specified level 
         /// </summary>
         /// <param name="level"></param>
-        public static void ToggleLoggingStatic(log4net.Core.Level level)
+        public static void ToggleLoggingStatic(ICommonLogger logger, ILoggingContext loggingContext, log4net.Core.Level level)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { level }))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { level }))
             {
                 try
                 {
@@ -618,7 +622,7 @@ namespace AdvancedLogging.Utilities
         /// <returns></returns>
         public log4net.Core.Level ToggleLogging(string logLevel)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { logLevel }))
+            using (var vAutoLogFunction = new AutoLogFunction(this.logger, this.loggingContext, new { logLevel }))
             {
                 try
                 {
@@ -649,9 +653,9 @@ namespace AdvancedLogging.Utilities
         /// </summary>
         /// <param name="logLevel"></param>
         /// <returns></returns>
-        public static log4net.Core.Level ToggleLoggingStatic(string logLevel)
+        public static log4net.Core.Level ToggleLoggingStatic(ICommonLogger logger, ILoggingContext loggingContext, string logLevel)
         {
-            using (var vAutoLogFunction = new AutoLogFunction(new { logLevel }))
+            using (var vAutoLogFunction = new AutoLogFunction(logger, loggingContext, new { logLevel }))
             {
                 try
                 {
@@ -665,7 +669,7 @@ namespace AdvancedLogging.Utilities
                     {
                         level = log4net.Core.Level.Info;
                     }
-                    ToggleLoggingStatic(level);
+                    ToggleLoggingStatic(logger, loggingContext, level);
 
                     return level;
                 }
